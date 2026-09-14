@@ -2594,6 +2594,17 @@
     );
   }
 
+  // Any of these, at every point while typing, resolve to the Rumours master:
+  //   "fleetwood mac r…umours", "rumours f…leetwood mac", "rumours by f…leetwood mac"
+  function isFmRumoursQuery(q) {
+    q = q.replace(/\s+/g, " ");
+    var isPrefix = function (rem, full) { return rem.length > 0 && full.indexOf(rem) === 0; };
+    var m = q.match(/^fleetwood mac (.+)$/);
+    if (m && isPrefix(m[1], "rumours")) return true;
+    m = q.match(/^rumours (.+)$/);
+    return !!(m && (isPrefix(m[1], "fleetwood mac") || isPrefix(m[1], "by fleetwood mac")));
+  }
+
   function fmRumoursResults() {
     var base = SEARCH_DATA["rumours"], fm = SEARCH_DATA["fleetwood mac"];
     var rum = base && base.masters.filter(function (m) { return m.id === RUMOURS_MASTER_ID; })[0];
@@ -2621,7 +2632,7 @@
     // and the query resolves to that master alone as the top result (the
     // artist row stays as the one other relevant hit); the Versions tab then
     // shows the real Rumours versions via isRumoursQuery.
-    if (!d && /^fleetwood\s+mac\s+r(u(m(o(u(r(s)?)?)?)?)?)?$/.test(q)) d = fmRumoursResults();
+    if (!d && isFmRumoursQuery(q)) d = fmRumoursResults();
     if (!d || (!d.masters.length && !d.artists.length && !d.labels.length && !d.releases.length)) {
       return '<p class="sr-hint">No results for \u201C' + esc(searchState.q.trim()) + '\u201D</p>';
     }
@@ -2647,7 +2658,7 @@
       // a single-master query ("fleetwood mac rumours") shows nothing below
       // the top result but the artist row
       if (d.single && t === "All") {
-        return html + (d.artists.length ? '<div class="sr-section">' + srSectionHeader("Artists", true) + '<div class="sr-scroll">' + d.artists.map(function (x) { return srEntityRowHTML(x, "artist"); }).join("") + "</div></div>" : "");
+        return html + (d.artists.length ? '<div class="sr-section">' + srSectionHeader("Artists", false) + '<div class="sr-scroll">' + d.artists.map(function (x) { return srEntityRowHTML(x, "artist"); }).join("") + "</div></div>" : "");
       }
       var tops = t === "All" ? d.masters.slice(0, 3) : d.masters;
       if (t === "All") {
