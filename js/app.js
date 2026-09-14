@@ -149,11 +149,11 @@
 
   // ---------- Variant D master (frame 1618:19413 "Master - Tracklist Open") ----------
 
-  function dSkittleHTML(icon, count, w, h) {
+  // a bare glyph, no count (user: numbers removed from the master header)
+  function dSkittleHTML(icon, w, h) {
     return (
       '<span class="d-skittle">' +
       '<span class="sk-icon" style="width:' + w + "px;height:" + h + 'px;-webkit-mask-image:url(shared/assets/' + icon + '.svg);mask-image:url(shared/assets/' + icon + '.svg)"></span>' +
-      '<span class="sk-count">' + count + "</span>" +
       "</span>"
     );
   }
@@ -199,10 +199,10 @@
       // action row: play + skittle group
       '<div class="d-actions">' +
       '<button class="d-play tappable" data-action="play" aria-label="Play"><img src="shared/assets/b-play.svg" alt="" /></button>' +
-      '<button class="d-skittle-group tappable" data-action="skittles">' +
-      dSkittleHTML("tab-wantlist", 1, 18, 11.5) +
-      dSkittleHTML("tab-collection", 1, 16, 15) +
-      dSkittleHTML("b-tag-white", 1, 16, 16) +
+      // just the wantlist eye in a round pill (user: collection + inventory
+      // glyphs and all counts removed)
+      '<button class="d-skittle-group tappable" data-action="skittles" aria-label="Wantlist">' +
+      dSkittleHTML("tab-wantlist", 18, 11.5) +
       "</button>" +
       "</div>" +
       // availability + stacked CTAs
