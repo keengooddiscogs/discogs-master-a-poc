@@ -168,7 +168,7 @@
       '<div class="nav-bar">' +
       '<span class="ma-header-left">' +
       '<button class="nav-icon-btn tappable" data-action="back-nav" aria-label="Back">' +
-      '<span class="surface"><img class="glyph-back" src="shared/assets/icon-back.svg" alt="" /></span>' +
+      '<span class="surface"><img class="glyph-back" src="shared/assets/icon-arrow-left.svg" alt="" /></span>' +
       "</button>" +
       '<span class="ma-header-title" id="ma-header-title">' + esc(m.title) + "</span>" +
       "</span>" +
@@ -1009,7 +1009,7 @@
       '<div class="nav-bar">' +
       '<span class="ma-header-left">' +
       '<button class="nav-icon-btn tappable" data-action="screen-back" aria-label="Back">' +
-      '<span class="surface"><img class="glyph-back" src="shared/assets/icon-back.svg" alt="" /></span>' +
+      '<span class="surface"><img class="glyph-back" src="shared/assets/icon-arrow-left.svg" alt="" /></span>' +
       "</button>" +
       '<span class="ma-header-title" id="notes-header-title">Notes, Genres &amp; Styles</span>' +
       "</span>" +
@@ -1082,7 +1082,7 @@
       '<div class="nav-bar">' +
       '<span class="ma-header-left">' +
       '<button class="nav-icon-btn tappable" data-action="screen-back" aria-label="Back">' +
-      '<span class="surface"><img class="glyph-back" src="shared/assets/icon-back.svg" alt="" /></span>' +
+      '<span class="surface"><img class="glyph-back" src="shared/assets/icon-arrow-left.svg" alt="" /></span>' +
       "</button>" +
       '<span class="ma-header-title" id="videos-header-title">Videos</span>' +
       "</span>" +
@@ -1171,7 +1171,7 @@
       '<div class="nav-bar">' +
       '<span class="ma-header-left">' +
       '<button class="nav-icon-btn tappable" data-action="screen-back" aria-label="Back">' +
-      '<span class="surface"><img class="glyph-back" src="shared/assets/icon-back.svg" alt="" /></span>' +
+      '<span class="surface"><img class="glyph-back" src="shared/assets/icon-arrow-left.svg" alt="" /></span>' +
       "</button>" +
       "</span>" +
       '<div class="nav-actions-right">' +
@@ -1400,7 +1400,7 @@
       '<div class="nav-bar">' +
       '<span class="ma-header-left">' +
       '<button class="nav-icon-btn tappable" data-action="screen-back" aria-label="Back">' +
-      '<span class="surface"><img class="glyph-back" src="shared/assets/icon-back.svg" alt="" /></span>' +
+      '<span class="surface"><img class="glyph-back" src="shared/assets/icon-arrow-left.svg" alt="" /></span>' +
       "</button>" +
       '<span class="ma-header-title" id="lists-header-title">Lists</span>' +
       "</span>" +
