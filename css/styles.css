@@ -447,6 +447,9 @@ button {
   pointer-events: none; /* taps fall through to the card */
 }
 
+/* .shop-listing-card resolves to 9px padding inside a 1px border, the same
+   content edge as the version card, so the base .vc-eye offsets apply as-is */
+
 .vc-eye .sk-icon {
   /* 14px wide, height from the glyph's own aspect (viewBox 20.0x12.8562) so it isn't stretched */
   width: 14px;
@@ -1656,6 +1659,7 @@ button {
 /* listing card */
 
 .shop-listing-card {
+  position: relative; /* anchors .vc-eye on the pinned top listing */
   background: var(--background-default);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-large);

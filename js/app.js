@@ -484,10 +484,44 @@
     return filters.formats.length + filters.countries.length + filters.conditions.length;
   }
 
-  function listingCardHTML(l) {
+  // The first shop listing is a real listing of the All versions page's top
+  // card (the 1977 US Vinyl, r8960635): DATA.referenceListings[0] is baked
+  // for exactly that version, at its typical price. It only appears while it
+  // passes the active filters, and it carries the same wantlist eye as the
+  // version card. Its grade is stored short ("VG+") — cards show full names.
+  var COND_FULL = { M: "Mint", NM: "Near Mint", "VG+": "Very Good +", VG: "Very Good", "G+": "Good +", G: "Good", F: "Fair", P: "Poor" };
+
+  function topShopListing() {
+    var r = DATA.referenceListings && DATA.referenceListings[0];
+    if (!r) return null;
+    var media = COND_FULL[r.media] || r.media;
+    if (filters.formats.length && filters.formats.indexOf(r.format) === -1) return null;
+    if (filters.conditions.length && filters.conditions.indexOf(media) === -1) return null;
+    if (filters.countries.length && filters.countries.indexOf(r.country) === -1) return null;
+    var l = {};
+    for (var k in r) l[k] = r[k];
+    l.media = media;
+    l.sleeve = COND_FULL[r.sleeve] || r.sleeve;
+    return l;
+  }
+
+  // pinned top listing first, then the generated, price-sorted cards
+  function shopListingCardsHTML() {
+    var top = topShopListing();
+    var html = top ? listingCardHTML(top, true) : "";
+    return html + generatedListings(top ? 29 : 30).map(function (l) { return listingCardHTML(l); }).join("");
+  }
+
+  function listingCardHTML(l, isTop) {
     var seller = l.seller;
+    var eye = isTop
+      ? '<span class="vc-eye" role="img" aria-label="In wantlist">' +
+        '<span class="sk-icon" style="-webkit-mask-image:url(shared/assets/tab-wantlist.svg);mask-image:url(shared/assets/tab-wantlist.svg)"></span>' +
+        "</span>"
+      : "";
     return (
       '<button class="shop-listing-card tappable" data-action="listing">' +
+      eye +
       '<div class="listing-info">' +
       '<img class="art" src="' + esc(l.artwork) + '" alt="" />' +
       '<div class="info-col">' +
@@ -658,7 +692,7 @@
       syncChipRow(row, row);
     }
     var cards = document.getElementById("shop-listings");
-    if (cards) cards.innerHTML = generatedListings(30).map(listingCardHTML).join("");
+    if (cards) cards.innerHTML = shopListingCardsHTML();
     var n = appliedFilterCount();
     var pill = document.querySelector("#screen-shop .pill-button[data-action=\"shop-filters\"]");
     if (pill) {
@@ -807,7 +841,7 @@
       "</div>" +
       '<div class="shop-content">' +
       '<div id="shop-active-chips">' + shopChipsRowHTML() + "</div>" +
-      '<div id="shop-listings">' + generatedListings(30).map(listingCardHTML).join("") + "</div>" +
+      '<div id="shop-listings">' + shopListingCardsHTML() + "</div>" +
       "</div>" +
       '<div class="tab-bar in-screen">' +
       '<button class="tab-bar-item active tappable" data-action="tabbar-explore">' +
