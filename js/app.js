@@ -158,6 +158,247 @@
     );
   }
 
+  // ---------- Artist page (Fleetwood Mac, Discogs 47333) ----------
+  // Real data from shared/artist-data.js (ARTIST). Mirrors the master page's
+  // structure — fixed header, hero, action row, stats, CTAs, tabs — but the
+  // hero is an immersive photo gallery. Only Rumours links out (to the
+  // master); every other discography item toasts.
+  var ARTIST_ID = 47333;
+  var arState = { tab: "discography", open: {}, membersAll: false, bioAll: false };
+  var AR_GROUPS = [["albums", "Albums"], ["singles", "Singles & EPs"], ["compilations", "Compilations"], ["videos", "Videos"], ["misc", "Miscellaneous"]];
+  var AR_CLAMP = 6;
+
+  // Items Discogs has no image for get a square monogram tile — initials of
+  // the title on a tint hashed from it, like the label fallback.
+  function arMonogramTile(title) {
+    return (
+      '<svg class="ar-mono" viewBox="0 0 100 100" aria-hidden="true" focusable="false">' +
+      '<rect width="100" height="100" fill="' + monoTint(title) + '" />' +
+      '<text class="sr-mono-text" x="50" y="50" text-anchor="middle" dominant-baseline="central">' + esc(monoInitials(title)) + "</text>" +
+      "</svg>"
+    );
+  }
+  function arArt(it, cls) {
+    return it.art
+      ? '<img class="' + cls + '" src="' + esc(it.art) + '" alt="" />'
+      : '<span class="' + cls + ' mono">' + arMonogramTile(it.title) + "</span>";
+  }
+
+  function arItemAction(it) { return it.isRumours ? "ar-open-rumours" : "ar-item"; }
+
+  function arItemHTML(it) {
+    var meta = [it.year, it.format].filter(Boolean).join(" • ");
+    return (
+      '<button class="ar-item tappable" data-action="' + arItemAction(it) + '">' +
+      arArt(it, "ar-item-art") +
+      '<span class="ar-item-info">' +
+      '<span class="ar-item-title">' + esc(it.title) + "</span>" +
+      '<span class="ar-item-meta">' + esc(meta) + "</span>" +
+      "</span>" +
+      "</button>"
+    );
+  }
+
+  function arGroupHTML(key, label) {
+    var list = ARTIST.discography[key] || [];
+    if (!list.length) return "";
+    var open = !!arState.open[key];
+    var shown = open ? list : list.slice(0, AR_CLAMP);
+    return (
+      '<section class="ar-group" data-group="' + key + '">' +
+      '<h2 class="ar-group-title">' + label + ' <span class="count">' + list.length + "</span></h2>" +
+      shown.map(arItemHTML).join("") +
+      (list.length > AR_CLAMP
+        ? '<button class="pf-more-btn tappable' + (open ? " up" : "") + '" data-action="ar-more" data-group="' + key + '">' +
+          '<span class="lbl">' + (open ? "Show less" : "Show all " + list.length) + '</span><img src="shared/assets/b-chevdown.svg" alt="" /></button>'
+        : "") +
+      "</section>"
+    );
+  }
+
+  function arMemberHTML(m) {
+    var art = m.photo
+      ? '<img class="ar-member-photo" src="' + esc(m.photo) + '" alt="" />'
+      : '<span class="ar-member-photo mono">' + srMonogramHTML(m.name) + "</span>";
+    return (
+      '<div class="ar-member">' + art +
+      '<span class="ar-member-info"><span class="ar-member-name">' + esc(m.name) + "</span>" +
+      '<span class="ar-member-role">' + (m.active ? "Current member" : "Former member") + "</span></span>" +
+      "</div>"
+    );
+  }
+
+  var AR_LINK_NAMES = { wikipedia: "Wikipedia", youtube: "YouTube", facebook: "Facebook", "x": "X", twitter: "X", instagram: "Instagram", imdb: "IMDb", "last.fm": "Last.fm", myspace: "MySpace", allmusic: "AllMusic", discogs: "Discogs", spotify: "Spotify", bandcamp: "Bandcamp", soundcloud: "SoundCloud" };
+  function arLinkLabel(u) {
+    var host = u.replace(/^https?:\/\/(www\.|m\.|en\.)?/, "").split("/")[0].toLowerCase();
+    var base = host.replace(/\.(com|org|net|co\.uk|io|tv)$/, "");
+    return AR_LINK_NAMES[base] || AR_LINK_NAMES[host] || host; // the artist's own site keeps its domain
+  }
+  function arLinks() {
+    var seen = {}, out = [];
+    ARTIST.urls.forEach(function (u) { var l = arLinkLabel(u); if (!seen[l]) { seen[l] = true; out.push(l); } });
+    return out;
+  }
+
+  function arTabBodyHTML() {
+    var a = ARTIST;
+    if (arState.tab === "members") {
+      var cur = a.members.filter(function (m) { return m.active; });
+      var former = a.members.filter(function (m) { return !m.active; });
+      return (
+        '<div class="ar-members">' +
+        cur.map(arMemberHTML).join("") +
+        (arState.membersAll ? former.map(arMemberHTML).join("") : "") +
+        (former.length
+          ? '<button class="pf-more-btn tappable' + (arState.membersAll ? " up" : "") + '" data-action="ar-members-more">' +
+            '<span class="lbl">' + (arState.membersAll ? "Show fewer" : "Show " + former.length + " former members") + '</span><img src="shared/assets/b-chevdown.svg" alt="" /></button>'
+          : "") +
+        "</div>"
+      );
+    }
+    if (arState.tab === "about") {
+      var paras = arState.bioAll ? a.profile : a.profile.slice(0, 1);
+      return (
+        '<div class="ar-about">' +
+        paras.map(function (p) { return "<p>" + esc(p) + "</p>"; }).join("") +
+        (a.profile.length > 1
+          ? '<button class="ar-readmore tappable" data-action="ar-readmore">' + (arState.bioAll ? "Read less" : "Read more") + "</button>"
+          : "") +
+        (a.realname ? '<p class="ar-fact"><span class="muted">Real name</span> ' + esc(a.realname) + "</p>" : "") +
+        (a.namevariations ? '<p class="ar-fact"><span class="muted">Name variations</span> ' + a.namevariations + "</p>" : "") +
+        (a.urls.length
+          ? '<div class="ar-links">' + arLinks().map(function (l) {
+              return '<button class="pf-chip tappable" data-action="ar-link"><span class="label">' + esc(l) + "</span></button>";
+            }).join("") + "</div>"
+          : "") +
+        "</div>"
+      );
+    }
+    return '<div class="ar-disc">' + AR_GROUPS.map(function (g) { return arGroupHTML(g[0], g[1]); }).join("") + "</div>";
+  }
+
+  function arTabsHTML() {
+    return [["discography", "Discography"], ["members", "Members"], ["about", "About"]].map(function (t) {
+      return '<button class="ar-tab tappable' + (arState.tab === t[0] ? " active" : "") + '" data-action="ar-tab" data-tab="' + t[0] + '">' + t[1] + "</button>";
+    }).join("");
+  }
+
+  function arPopularHTML() {
+    var byId = {};
+    AR_GROUPS.forEach(function (g) { (ARTIST.discography[g[0]] || []).forEach(function (it) { byId[it.kind + it.id] = it; }); });
+    var items = ARTIST.popular.map(function (id) { return byId["master" + id]; }).filter(Boolean);
+    if (!items.length) return "";
+    return (
+      '<div class="ar-popular">' +
+      '<h2 class="ar-sec-title">Popular</h2>' +
+      '<div class="ar-popular-scroll">' +
+      items.map(function (it) {
+        return (
+          '<button class="ar-pop tappable" data-action="' + arItemAction(it) + '">' +
+          arArt(it, "ar-pop-art") +
+          '<span class="ar-pop-title">' + esc(it.title) + "</span>" +
+          '<span class="ar-pop-year">' + (it.year || "") + "</span>" +
+          "</button>"
+        );
+      }).join("") +
+      "</div></div>"
+    );
+  }
+
+  function artistScreenHTML() {
+    var a = ARTIST;
+    var years = a.firstYear ? a.firstYear + "–" + (a.lastYear >= 2024 ? "present" : a.lastYear) : "";
+    var meta = [a.origin, years, a.members.length ? a.members.length + " members" : ""].filter(Boolean).join(" • ");
+    return (
+      '<div class="screen">' +
+      // fixed header, same construction as the master's: transparent over the
+      // gallery, white + shadow once scrolled, name fades in as the hero passes
+      '<div class="ma-header ar-header" id="ar-header">' +
+      '<div class="nav-bar">' +
+      '<span class="ma-header-left">' +
+      '<button class="nav-icon-btn tappable" data-action="back-nav" aria-label="Back">' +
+      '<span class="surface"><img class="glyph-back" src="shared/assets/icon-arrow-left.svg" alt="" /></span>' +
+      "</button>" +
+      '<span class="ma-header-title" id="ar-header-title">' + esc(a.name) + "</span>" +
+      "</span>" +
+      '<div class="nav-actions-right">' +
+      '<button class="nav-icon-btn tappable" data-action="share" aria-label="Share">' +
+      '<span class="surface"><img class="glyph-share" src="shared/assets/icon-share.svg" alt="" /></span>' +
+      "</button>" +
+      "</div>" +
+      "</div>" +
+      "</div>" +
+      // immersive gallery hero: snap-scrolling real photos with the name over a shade
+      '<div class="ar-gallery" id="ar-gallery">' +
+      '<div class="ar-gallery-track" id="ar-gallery-track">' +
+      a.gallery.map(function (g) { return '<img class="ar-gallery-img" src="' + esc(g.src) + '" alt="" />'; }).join("") +
+      "</div>" +
+      '<div class="ar-gallery-shade"></div>' +
+      '<div class="ar-hero-text" id="ar-hero-text">' +
+      '<p class="ar-eyebrow">Artist</p>' +
+      '<h1 class="ar-name">' + esc(a.name) + "</h1>" +
+      '<p class="ar-meta">' + esc(meta) + "</p>" +
+      "</div>" +
+      (a.gallery.length > 1
+        ? '<div class="ar-dots" id="ar-dots">' + a.gallery.map(function (_, i) { return '<span class="ar-dot' + (i === 0 ? " on" : "") + '"></span>'; }).join("") + "</div>"
+        : "") +
+      "</div>" +
+      // action row: play + the same wantlist eye pill as the master
+      '<div class="d-actions ar-actions">' +
+      '<button class="d-play tappable" data-action="play" aria-label="Play"><img src="shared/assets/b-play.svg" alt="" /></button>' +
+      '<button class="d-skittle-group tappable" data-action="skittles" aria-label="Wantlist">' +
+      dSkittleHTML("tab-wantlist", 18, 11.5) +
+      "</button>" +
+      "</div>" +
+      // (the master's "availability + CTAs" slot is intentionally empty here:
+      // the stats line and the "Shop <artist>" CTA were both removed by the
+      // user; the ar-shop action is kept so the CTA is one line to restore)
+      arPopularHTML() +
+      // tabs (the master's Tracklist / Credits slot)
+      '<div class="ar-tabs" id="ar-tabs">' + arTabsHTML() + "</div>" +
+      '<div class="ar-tab-body" id="ar-tab-body">' + arTabBodyHTML() + "</div>" +
+      '<div class="ar-foot"></div>' +
+      "</div>"
+    );
+  }
+
+  function refreshArtistTabs() {
+    var t = document.getElementById("ar-tabs"), b = document.getElementById("ar-tab-body");
+    if (t) t.innerHTML = arTabsHTML();
+    if (b) b.innerHTML = arTabBodyHTML();
+  }
+
+  function openArtist() {
+    if (typeof ARTIST === "undefined") { toast(); return; }
+    if (document.getElementById("screen-artist")) return;
+    pushScreen("artist", artistScreenHTML());
+    var push = document.getElementById("screen-artist");
+    push.classList.add("master-push"); // the overlay owns the scrolling
+    // Once the slide-in has finished, drop the overlay's transform: a
+    // transformed ancestor turns position:fixed into absolute, which would
+    // let the header scroll away with the page (same fix as the master).
+    var pin = function () { if (push.classList.contains("in") && !push.style.transform) push.style.transform = "none"; };
+    push.addEventListener("transitionend", function (e) { if (e.target === push) pin(); });
+    setTimeout(pin, 400); // transitionend can be skipped (hidden tab, reduced motion) — pin anyway
+    var head = document.getElementById("ar-header");
+    var hero = document.getElementById("ar-hero-text");
+    push.addEventListener("scroll", function () {
+      head.classList.toggle("scrolled", push.scrollTop >= 1);
+      // title appears once the hero name has scrolled under the header:
+      // compare scroll offset with the hero's bottom edge inside the scroller
+      var heroBottom = hero.offsetTop + hero.offsetHeight;
+      head.classList.toggle("titled", push.scrollTop >= heroBottom - head.offsetHeight);
+    }, { passive: true });
+    var track = document.getElementById("ar-gallery-track");
+    var dots = document.getElementById("ar-dots");
+    if (track && dots) {
+      track.addEventListener("scroll", function () {
+        var i = Math.round(track.scrollLeft / track.clientWidth);
+        Array.prototype.forEach.call(dots.children, function (d, k) { d.classList.toggle("on", k === i); });
+      }, { passive: true });
+    }
+  }
+
   function masterScreenHTML() {
     var m = DATA.master;
     return (
@@ -2031,7 +2272,7 @@
       openPrefilter();
       refreshPrefilter();
     },
-    artist: function () { toast(); },
+    artist: function () { openArtist(); },
     "genre-style": function () { toast(); },
     notes: function () {
       if (!document.getElementById("screen-notes")) {
@@ -2332,7 +2573,7 @@
           ? '<span class="sr-entity-art square mono">' + srMonogramHTML(x.name, true) + "</span>"
           : '<span class="sr-entity-art ph"></span>');
     return (
-      '<button class="sr-card sr-entity tappable" data-action="sr-item">' +
+      '<button class="sr-card sr-entity tappable" data-action="' + (!isLabel && x.id === ARTIST_ID ? "open-artist" : "sr-item") + '">' +
       art +
       '<span class="sr-info">' +
       '<span class="sr-overline">' + (isLabel ? "Label" : "Artist") + "</span>" +
@@ -2351,12 +2592,34 @@
     );
   }
 
+  function fmRumoursResults() {
+    var base = SEARCH_DATA["rumours"], fm = SEARCH_DATA["fleetwood mac"];
+    var rum = base && base.masters.filter(function (m) { return m.id === RUMOURS_MASTER_ID; })[0];
+    var art = fm && fm.artists.filter(function (a) { return a.id === ARTIST_ID; })[0];
+    if (!rum) return null;
+    return { masters: [rum], artists: art ? [art] : [], labels: [], releases: [], single: true };
+  }
+
+  // the query's Fleetwood Mac hits, when present: the artist row and the
+  // self-titled master lead the "Top results" block
+  function fmTopHits(d) {
+    var artist = d.artists.filter(function (a) { return a.id === ARTIST_ID; })[0];
+    if (!artist) return null;
+    var master = d.masters.filter(function (m) { return /^fleetwood mac$/i.test(m.title) && /fleetwood mac/i.test(m.artist); })[0] || d.masters[0];
+    return { artist: artist, master: master };
+  }
+
   function searchResultsHTML() {
     var q = searchState.q.trim().toLowerCase();
     if (!q) {
       return '<p class="sr-hint">Search for artists, albums, labels, and more</p>';
     }
     var d = typeof SEARCH_DATA !== "undefined" && SEARCH_DATA[q];
+    // The baked prefixes stop at "fleetwood mac". Keep typing toward Rumours
+    // and the query resolves to that master alone as the top result (the
+    // artist row stays as the one other relevant hit); the Versions tab then
+    // shows the real Rumours versions via isRumoursQuery.
+    if (!d && /^fleetwood\s+mac\s+r(u(m(o(u(r(s)?)?)?)?)?)?$/.test(q)) d = fmRumoursResults();
     if (!d || (!d.masters.length && !d.artists.length && !d.labels.length && !d.releases.length)) {
       return '<p class="sr-hint">No results for \u201C' + esc(searchState.q.trim()) + '\u201D</p>';
     }
@@ -2370,7 +2633,19 @@
     var showReleases = t === "Versions";
     if (showMasters && d.masters.length) {
       if (t === "All") {
-        html += '<div class="sr-section">' + srSectionHeader("Top result", false) + srBigCardHTML(d.masters[0]) + "</div>";
+        // single-master query: the master alone is the top result; the
+        // artist appears once, in the Artists section below
+        var fm = !d.single && fmTopHits(d);
+        html += fm
+          // Fleetwood Mac in the results: "Top results" — the artist's list
+          // row (opens the artist page) followed by the self-titled master
+          ? '<div class="sr-section">' + srSectionHeader("Top results", false) + srEntityRowHTML(fm.artist, "artist") + srBigCardHTML(fm.master) + "</div>"
+          : '<div class="sr-section">' + srSectionHeader("Top result", false) + srBigCardHTML(d.masters[0]) + "</div>";
+      }
+      // a single-master query ("fleetwood mac rumours") shows nothing below
+      // the top result but the artist row
+      if (d.single && t === "All") {
+        return html + (d.artists.length ? '<div class="sr-section">' + srSectionHeader("Artists", true) + '<div class="sr-scroll">' + d.artists.map(function (x) { return srEntityRowHTML(x, "artist"); }).join("") + "</div></div>" : "");
       }
       var tops = t === "All" ? d.masters.slice(0, 3) : d.masters;
       if (t === "All") {
@@ -2516,6 +2791,22 @@
   actions["sr-item"] = function () { toast(); };
   actions["version-shop"] = function () { actions["pf-shop"](); };
   actions["sr-see-all"] = function () { toast(); };
+  // artist page
+  actions["artist-card"] = function () { openArtist(); };
+  actions["open-artist"] = function () { openArtist(); };
+  actions["ar-tab"] = function (el) { arState.tab = el.dataset.tab; refreshArtistTabs(); };
+  actions["ar-more"] = function (el) { arState.open[el.dataset.group] = !arState.open[el.dataset.group]; refreshArtistTabs(); };
+  actions["ar-members-more"] = function () { arState.membersAll = !arState.membersAll; refreshArtistTabs(); };
+  actions["ar-readmore"] = function () { arState.bioAll = !arState.bioAll; refreshArtistTabs(); };
+  actions["ar-item"] = function () { toast(); };
+  actions["ar-link"] = function () { toast(); };
+  actions["ar-shop"] = function () { toast(); };
+  // Rumours is the one live link: back to the master if we came from it,
+  // otherwise open it fresh (e.g. artist reached from search)
+  actions["ar-open-rumours"] = function (el) {
+    if (document.getElementById("screen-master")) { history.back(); return; }
+    if (actions["open-master"]) actions["open-master"](el);
+  };
   actions["search-back"] = function () { toast(); };
   actions["search-scan"] = function () { toast(); };
   actions["search-filters"] = function () { toast(); };
