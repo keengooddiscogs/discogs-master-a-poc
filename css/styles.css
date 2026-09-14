@@ -2634,9 +2634,11 @@ button {
   right: 0;
   bottom: 0;
   z-index: 31;
-  /* every bottom sheet stops at the status bar: ~50px on iOS, or the real
-     safe-area inset when the device reports a larger one */
-  height: calc(100dvh - max(50px, env(safe-area-inset-top, 0px)));
+  /* every bottom sheet rises almost to the top: an 8px sliver of the page
+     stays visible under the scrim (mobile browsers already exclude their
+     own chrome from 100dvh); the safe-area term only matters in standalone
+     web-app mode, where the page runs under the status bar */
+  height: calc(100dvh - max(8px, env(safe-area-inset-top, 0px)));
   display: flex;
   flex-direction: column;
   background: var(--background-default);
@@ -2786,6 +2788,9 @@ button {
   position: relative;
   height: 20px;
   margin: var(--sp-1) 0;
+  /* the 44px thumbs overflow this 20px box above and below; lift the slider
+     over the histogram and price boxes so the whole target receives taps */
+  z-index: 2;
 }
 
 .fs-slider .rail {
@@ -2805,14 +2810,29 @@ button {
   background: #121212;
 }
 
+/* each end of the range is a 44x44 touch target; the visible dot (18px,
+   was 16) is drawn inside it, centred on the 6px rail (rail centre = 10px) */
 .fs-slider .thumb {
   position: absolute;
-  top: 2px;
-  width: 16px;
-  height: 16px;
+  top: -12px;
+  width: 44px;
+  height: 44px;
+  /* no radius here: the hit shape must be the full 44px square (a rounded
+     box would clip the corners out of the target); the dot below is round */
+  background: none;
+  touch-action: none;
+  z-index: 1;
+}
+
+.fs-slider .thumb::before {
+  content: "";
+  position: absolute;
+  left: 13px;
+  top: 13px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: #121212;
-  touch-action: none;
 }
 
 .fs-price-inputs {

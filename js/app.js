@@ -2031,8 +2031,10 @@
     var loT = sheetEl.querySelector("#fs-thumb-lo"), hiT = sheetEl.querySelector("#fs-thumb-hi"), fill = sheetEl.querySelector("#fs-fill");
     var bars = sheetEl.querySelectorAll(".fs-histogram span");
     function render() {
-      loT.style.left = "calc(" + lo * 100 + "% - " + lo * 16 + "px)";
-      hiT.style.left = "calc(" + hi * 100 + "% - " + hi * 16 + "px)";
+      // the thumb is a 44px hit area with an 18px dot centred in it: the dot
+      // travels the rail (p * (width - 18)), so the box sits 13px left of that
+      loT.style.left = "calc(" + lo * 100 + "% - " + lo * 18 + "px - 13px)";
+      hiT.style.left = "calc(" + hi * 100 + "% - " + hi * 18 + "px - 13px)";
       fill.style.left = lo * 100 + "%";
       fill.style.right = (1 - hi) * 100 + "%";
       var lv = Math.round(min + lo * (max - min)), hv = Math.round(min + hi * (max - min));
@@ -2049,7 +2051,7 @@
     function drag(thumb, isLo) {
       thumb.addEventListener("pointerdown", function (e) {
         e.preventDefault();
-        thumb.setPointerCapture(e.pointerId);
+        try { thumb.setPointerCapture(e.pointerId); } catch (_) { /* capture is a nicety, not required */ }
         function move(ev) {
           var r = slider.getBoundingClientRect();
           var t = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
