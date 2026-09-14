@@ -1521,11 +1521,16 @@ button {
   padding: var(--sp-2) var(--sp-2) 0;
 }
 
+/* 48px touch target around the same 36px circle, like the master's
+   .nav-icon-btn/.surface pair: the -6px margin keeps the button's layout
+   footprint at 36px, so the circle stays at (16,16) and nothing shifts */
 .shop-product-row .icon-btn {
-  width: 36px;
-  height: 36px;
+  position: relative;
+  width: 48px;
+  height: 48px;
+  margin: -6px;
   border-radius: var(--radius-round);
-  background: var(--background-secondary);
+  background: none;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1533,7 +1538,16 @@ button {
   align-self: flex-start; /* row top, not centred on the 55px music card */
 }
 
+.shop-product-row .icon-btn::before {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  background: var(--background-secondary);
+}
+
 .shop-product-row .icon-btn img {
+  position: relative; /* above the ::before disc */
   width: 17px;
   height: 11px;
 }
