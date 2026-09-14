@@ -144,7 +144,10 @@ button {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  padding: 0 var(--sp-125);
+  /* 10px top + the 6px inset of the 36px circle inside its 48px hit area
+     puts the back circle at (16,16) — the same spot as the All versions,
+     Find your copy and Shop headers, so it doesn't jump between screens */
+  padding: var(--sp-125) var(--sp-125) 0;
   width: 100%;
 }
 
@@ -1527,6 +1530,7 @@ button {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  align-self: flex-start; /* row top, not centred on the 55px music card */
 }
 
 .shop-product-row .icon-btn img {
@@ -2390,7 +2394,7 @@ button {
 
 /* content clears the fixed header (safe area + 48px nav) */
 .ma-content {
-  padding-top: calc(env(safe-area-inset-top, 0px) + 48px);
+  padding-top: calc(env(safe-area-inset-top, 0px) + 58px); /* 10px nav padding + 48px nav */
 }
 
 /* ---------- Master A pre-filter header update (frames 1846:*) ---------- */
