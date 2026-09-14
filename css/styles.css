@@ -1125,6 +1125,15 @@ button {
   letter-spacing: var(--ls-default);
 }
 
+/* helper copy under a pf-card heading (Media Condition, frame 1816:160722) */
+.pf-help {
+  margin-top: var(--sp-1);
+  font-size: var(--fs-body-large);
+  line-height: 1.35;
+  color: var(--content-secondary);
+}
+.pf-help b { font-weight: 700; }
+
 /* product info music card */
 
 .music-card {
@@ -2574,7 +2583,9 @@ button {
   right: 0;
   bottom: 0;
   z-index: 31;
-  height: 93dvh;
+  /* every bottom sheet stops at the status bar: ~50px on iOS, or the real
+     safe-area inset when the device reports a larger one */
+  height: calc(100dvh - max(50px, env(safe-area-inset-top, 0px)));
   display: flex;
   flex-direction: column;
   background: var(--background-default);
@@ -2651,6 +2662,44 @@ button {
 
 .fs-close .x::before { transform: rotate(45deg); }
 .fs-close .x::after { transform: rotate(-45deg); }
+
+/* ---------- Grading bottom sheet (frame 1681:78895) ---------- */
+/* can open on top of the Filters sheet (30/31), so stack above it */
+.sheet-scrim.above { z-index: 40; }
+.filter-sheet.grading-sheet { z-index: 41; }
+
+/* header carries only the close button; the title lives in the body */
+.grading-head { box-shadow: none; }
+
+.grading-body {
+  flex: 1 0 0;
+  min-height: 1px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 var(--sp-2) calc(var(--sp-2) * 1.5);
+}
+
+.grading-body h1 {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: var(--ls-default);
+  margin: var(--sp-1) 0 var(--sp-2);
+}
+
+.grade-def + .grade-def { margin-top: var(--sp-2); }
+
+.grade-def h3 {
+  font-size: var(--fs-heading-xxsmall);
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: var(--sp-05);
+}
+
+.grade-def p {
+  font-size: var(--fs-body-large);
+  line-height: 1.35;
+}
 
 
 .fs-body {
@@ -4432,8 +4481,15 @@ button {
 }
 .intro-veil.in { opacity: 1; pointer-events: auto; transition-duration: 280ms; }
 
+/* reduced motion: keep the fade + blur, drop only the vertical movement.
+   Fully disabling the animation made the intro appear to have none. */
+@keyframes introPopStill {
+  from { opacity: 0; filter: blur(16px); }
+  to   { opacity: 1; filter: blur(0); }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .intro-pop > *, .intro-pop.out > * { animation: none; }
+  .intro-pop > *, .intro-pop.out > * { animation-name: introPopStill; }
   .intro-veil { transition: none; }
 }
 

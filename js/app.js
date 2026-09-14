@@ -418,10 +418,13 @@
       "<h2>Formats</h2>" +
       '<div id="pf-formats">' + formatTilesHTML() + "</div>" +
       "</div>" +
-      // media condition — multi-select chips (frame 1618:19684)
+      // media condition — multi-select chips, always fully exposed, with the
+      // grading helper copy and an (i) that opens the grading sheet (frame 1816:160722)
       '<div class="pf-card">' +
       "<h2>Media Condition</h2>" +
-      '<div class="pf-chips" id="pf-conditions">' + GRADES.map(conditionChipHTML).join("") + "</div>" +
+      '<button class="info-btn tappable" data-action="pf-info" aria-label="About grading"><img src="shared/assets/icon-info.svg" alt="" /></button>' +
+      '<p class="pf-help"><b>Very Good +</b>, and <b>Near Mint</b> balance quality and price. For grading info, tap the i button</p>' +
+      '<div class="pf-chips no-clamp" id="pf-conditions">' + GRADES.map(conditionChipHTML).join("") + "</div>" +
       "</div>" +
       // ships from country
       '<div class="pf-card">' +
@@ -1618,6 +1621,63 @@
     setTimeout(function () { sh.remove(); sc.remove(); }, 350);
   }
 
+  // ---------- Grading bottom sheet (frame 1681:78895) ----------
+  // Opened from the (i) beside Media Condition on the pre-filter screen and
+  // in the Filters sheet. Same scrim/sheet/history mechanics as Sort; sits
+  // above the Filters sheet (z 40/41) since it can open on top of it.
+  var GRADE_INFO = [
+    ["Mint (M)", "Absolutely perfect in every way. Certainly never been played. Should be used sparingly as a grade."],
+    ["Near Mint (NM)", "A nearly perfect record. The record should show no obvious signs of wear."],
+    ["Very Good+ (VG+)", "Will show some signs that it was played and otherwise handled by a previous owner who took good care of it."],
+    ["Very Good (VG)", "Noticeable groove wear and light scratches. Surface noise will not overpower the music."],
+    ["Good+ (G+)", "Can play without skipping. Significant scratches, surface noise, and groove wear."],
+    ["Good (G)", "Can play without skipping. Significant scratches, surface noise, and groove wear."],
+    ["Fair (F)", "Significant scratches, surface noise, groove wear and maybe skips"],
+    ["Poor (P)", "Damage heard when playing, the lowest quality rating"],
+  ];
+  var gradingSheetEl = null, gradingScrimEl = null;
+
+  function gradingSheetHTML() {
+    return (
+      '<div class="fs-header grading-head">' +
+      '<button class="fs-close tappable" data-action="grading-close" aria-label="Close"><span class="x"></span></button>' +
+      "</div>" +
+      '<div class="grading-body">' +
+      "<h1>All About Record Grading</h1>" +
+      GRADE_INFO.map(function (g) {
+        return '<section class="grade-def"><h3>' + esc(g[0]) + "</h3><p>" + esc(g[1]) + "</p></section>";
+      }).join("") +
+      "</div>"
+    );
+  }
+
+  function openGradingSheet() {
+    if (gradingSheetEl) return;
+    gradingScrimEl = document.createElement("div");
+    gradingScrimEl.className = "sheet-scrim above";
+    gradingScrimEl.addEventListener("click", function () { history.back(); });
+    gradingSheetEl = document.createElement("div");
+    gradingSheetEl.className = "filter-sheet grading-sheet";
+    gradingSheetEl.innerHTML = gradingSheetHTML();
+    document.body.appendChild(gradingScrimEl);
+    document.body.appendChild(gradingSheetEl);
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        gradingScrimEl.classList.add("in");
+        gradingSheetEl.classList.add("in");
+      });
+    });
+    history.pushState({ screen: "grading" }, "", "#grading");
+  }
+
+  function closeGradingSheet() {
+    if (!gradingSheetEl) return;
+    var sh = gradingSheetEl, sc = gradingScrimEl;
+    gradingSheetEl = null; gradingScrimEl = null;
+    sh.classList.remove("in"); sc.classList.remove("in");
+    setTimeout(function () { sh.remove(); sc.remove(); }, 350);
+  }
+
   function refreshSortPill() {
     var pill = document.querySelector('#screen-shop .pill-button[data-action="shop-sort"] .surface');
     if (!pill) return;
@@ -1756,6 +1816,7 @@
     var id = location.hash ? location.hash.slice(1) : null;
     if (id !== "filters") closeFilterSheet();
     if (id !== "sort") closeSortSheet();
+    if (id !== "grading") closeGradingSheet();
     // pop overlays until the top matches the current history entry;
     // underlying screens keep their DOM (and scroll) untouched
     while (screenStack.length && screenStack[screenStack.length - 1].id !== id) {
@@ -1837,7 +1898,8 @@
       refreshPrefilter();
       refreshShopFilters();
     },
-    "pf-info": function () { toast(); },
+    "pf-info": function () { openGradingSheet(); },
+    "grading-close": function () { history.back(); },
     "pf-shop": function () {
       if (!document.getElementById("screen-shop")) pushScreen("shop", shopScreenHTML());
     },
