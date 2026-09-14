@@ -860,8 +860,16 @@
     );
   }
 
-  function versionsPageCardHTML(v) {
+  // isTop: the first card on the page carries a small wantlist eye at its
+  // top-right (20px pill, 14px glyph). A badge, not a button — the card
+  // itself is already a <button>, so nesting one would be invalid.
+  function versionsPageCardHTML(v, isTop) {
     var forSale = v.copiesForSale > 0 && v.priceDisplay;
+    var eye = isTop
+      ? '<span class="vc-eye" role="img" aria-label="In wantlist">' +
+        '<span class="sk-icon" style="-webkit-mask-image:url(shared/assets/tab-wantlist.svg);mask-image:url(shared/assets/tab-wantlist.svg)"></span>' +
+        "</span>"
+      : "";
     var descLine = v.description ? '<p class="release-description">' + esc(v.description) + "</p>" : "";
     var editionPart = v.edition ? "<span>" + esc(v.edition) + "</span>" : "";
     // Cards doc "Version Card": one CTA band — "{n} for sale · about $X"
@@ -884,6 +892,7 @@
       "</p>" +
       "</div>" +
       "</button>" +
+      eye +
       summary +
       "</div>"
     );
@@ -933,7 +942,7 @@
       '<div class="vs-cards">' +
       allVersions()
         .sort(function (a, b) { return a.year - b.year; }) // page is "Sort: Year"
-        .map(versionsPageCardHTML)
+        .map(function (v, i) { return versionsPageCardHTML(v, i === 0); }) // top result gets the eye
         .join("") +
       "</div>" +
       "</div>" + // /vs-scroll
