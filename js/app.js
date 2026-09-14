@@ -2585,13 +2585,10 @@
     );
   }
 
-  function srSectionHeader(label, chevron) {
-    return (
-      '<button class="sr-sec-head tappable" data-action="sr-see-all">' +
-      '<span class="sr-sec-title">' + label + "</span>" +
-      (chevron ? '<img class="sr-chev" src="shared/assets/chevron-right.svg" alt="" />' : "") +
-      "</button>"
-    );
+  // plain section label: no chevron, not tappable (user) — the chevron was
+  // the only affordance for a tap that just toasted
+  function srSectionHeader(label) {
+    return '<div class="sr-sec-head"><span class="sr-sec-title">' + label + "</span></div>";
   }
 
   // Any of these, at every point while typing, resolve to the Rumours master:
@@ -2652,17 +2649,17 @@
         html += fm
           // Fleetwood Mac in the results: "Top results" — the artist's list
           // row (opens the artist page) followed by the self-titled master
-          ? '<div class="sr-section">' + srSectionHeader("Top results", false) + srEntityRowHTML(fm.artist, "artist") + srBigCardHTML(fm.master) + "</div>"
-          : '<div class="sr-section">' + srSectionHeader("Top result", false) + srBigCardHTML(d.masters[0]) + "</div>";
+          ? '<div class="sr-section">' + srSectionHeader("Top results") + srEntityRowHTML(fm.artist, "artist") + srBigCardHTML(fm.master) + "</div>"
+          : '<div class="sr-section">' + srSectionHeader("Top result") + srBigCardHTML(d.masters[0]) + "</div>";
       }
       // a single-master query ("fleetwood mac rumours") shows nothing below
       // the top result but the artist row
       if (d.single && t === "All") {
-        return html + (d.artists.length ? '<div class="sr-section">' + srSectionHeader("Artists", false) + '<div class="sr-scroll">' + d.artists.map(function (x) { return srEntityRowHTML(x, "artist"); }).join("") + "</div></div>" : "");
+        return html + (d.artists.length ? '<div class="sr-section">' + srSectionHeader("Artists") + '<div class="sr-scroll">' + d.artists.map(function (x) { return srEntityRowHTML(x, "artist"); }).join("") + "</div></div>" : "");
       }
       var tops = t === "All" ? d.masters.slice(0, 3) : d.masters;
       if (t === "All") {
-        html += '<div class="sr-section">' + srSectionHeader("Top master releases", true) +
+        html += '<div class="sr-section">' + srSectionHeader("Top master releases") +
           tops.map(srBigCardHTML).join("") + "</div>";
       } else {
         html += '<div class="sr-section">' + tops.map(srBigCardHTML).join("") + "</div>";
@@ -2673,18 +2670,18 @@
     // chevron and See all go away and the circles wrap in a grid instead.
     if (showArtists && d.artists.length) {
       html += t === "All"
-        ? '<div class="sr-section">' + srSectionHeader("Artists", true) +
+        ? '<div class="sr-section">' + srSectionHeader("Artists") +
           '<div class="sr-scroll">' + d.artists.map(srCircleCardHTML).join("") + "</div></div>"
         : '<div class="sr-section">' + d.artists.map(function (x) { return srEntityRowHTML(x, "artist"); }).join("") + "</div>";
     }
     if (showLabels && d.labels.length) {
       html += t === "All"
-        ? '<div class="sr-section">' + srSectionHeader("Labels", true) +
+        ? '<div class="sr-section">' + srSectionHeader("Labels") +
           '<div class="sr-scroll">' + d.labels.map(function (l) { return srCircleCardHTML(l, true); }).join("") + "</div></div>"
         : '<div class="sr-section">' + d.labels.map(function (x) { return srEntityRowHTML(x, "label"); }).join("") + "</div>";
     }
     if (showMasters && t === "All" && d.masters.length > 3) {
-      html += '<div class="sr-section">' + srSectionHeader("More master releases", true) +
+      html += '<div class="sr-section">' + srSectionHeader("More master releases") +
         d.masters.slice(3, 7).map(srBigCardHTML).join("") + "</div>";
     }
     if (showReleases) {
