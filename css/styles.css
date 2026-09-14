@@ -442,8 +442,9 @@ button {
 }
 
 .vc-eye .sk-icon {
+  /* 14px wide, height from the glyph's own aspect (viewBox 20.0x12.8562) so it isn't stretched */
   width: 14px;
-  height: 14px;
+  height: 9.0px;
   background-color: #000;
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
