@@ -1165,8 +1165,10 @@ button {
 
 /* helper copy under a pf-card heading (Media Condition, frame 1816:160722) */
 .pf-help {
-  margin-top: var(--sp-1);
-  font-size: var(--fs-body-large);
+  /* 14px copy, 10px below the heading; .pf-chips' own 10px top margin
+     gives the matching 10px above the buttons */
+  margin-top: var(--sp-125);
+  font-size: var(--fs-body-medium);
   line-height: 1.35;
   color: var(--content-secondary);
 }
