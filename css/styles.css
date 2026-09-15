@@ -4734,3 +4734,12 @@ button {
 .ar-fact { margin-top: var(--sp-15); font-size: var(--fs-body-medium); }
 .ar-fact .muted { color: var(--content-secondary); margin-right: 6px; }
 .ar-links { display: flex; flex-wrap: wrap; gap: var(--sp-1); margin-top: var(--sp-2); }
+
+/* "Showing results for rumours" — the US-spelling correction note */
+.sr-corrected {
+  padding: var(--sp-1) 0 0;
+  font-size: var(--fs-body-medium);
+  line-height: 1.35;
+  color: var(--content-secondary);
+}
+.sr-corrected b { color: var(--content-primary); font-weight: 600; }

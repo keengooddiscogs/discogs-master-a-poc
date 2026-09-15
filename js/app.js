@@ -722,7 +722,9 @@
   // Filters badge = number of applied pre-filters (each selected format,
   // each selected country, +1 if the min-condition slider was raised).
   function appliedFilterCount() {
-    return filters.formats.length + filters.countries.length + filters.conditions.length;
+    var d = drawerFilters;
+    return filters.formats.length + filters.countries.length + filters.conditions.length +
+      d.descriptions.length + d.years.length + d.currencies.length + (d.acceptsOffers ? 1 : 0) + (priceNarrowed() ? 1 : 0);
   }
 
   // The first shop listing is a real listing of the All versions page's top
@@ -732,25 +734,29 @@
   // version card. Its grade is stored short ("VG+") — cards show full names.
   var COND_FULL = { M: "Mint", NM: "Near Mint", "VG+": "Very Good +", VG: "Very Good", "G+": "Good +", G: "Good", F: "Fair", P: "Poor" };
 
-  function topShopListing() {
+  function topShopListing(raw) {
     var r = DATA.referenceListings && DATA.referenceListings[0];
     if (!r) return null;
-    var media = COND_FULL[r.media] || r.media;
-    if (filters.formats.length && filters.formats.indexOf(r.format) === -1) return null;
-    if (filters.conditions.length && filters.conditions.indexOf(media) === -1) return null;
-    if (filters.countries.length && filters.countries.indexOf(r.country) === -1) return null;
     var l = {};
     for (var k in r) l[k] = r[k];
-    l.media = media;
+    l.media = COND_FULL[r.media] || r.media;
     l.sleeve = COND_FULL[r.sleeve] || r.sleeve;
-    return l;
+    l.priceNum = parseFloat(r.price) || 0;
+    l.year = parseInt(r.yearLine, 10) || null;
+    l.descTokens = descTokens(r.description);
+    l.currency = currencyFor(r.country);
+    l.acceptsOffers = true;
+    l.listed = r.listed || "Sep 12";
+    l.listedDaysAgo = listedDaysAgo(l.listed);
+    l.isTop = true;
+    if (raw) return l;
+    return passesBase(l) && passesDrawer(l) ? l : null;
   }
 
-  // pinned top listing first, then the generated, price-sorted cards
   function shopListingCardsHTML() {
-    var top = topShopListing();
-    var html = top ? listingCardHTML(top, true) : "";
-    return html + generatedListings(top ? 29 : 30).map(function (l) { return listingCardHTML(l); }).join("");
+    var list = visibleListings().slice(0, 30);
+    if (!list.length) return '<p class="sr-hint shop-empty">No listings match these filters</p>';
+    return list.map(function (l) { return listingCardHTML(l, !!l.isTop); }).join("");
   }
 
   function listingCardHTML(l, isTop) {
@@ -813,6 +819,12 @@
     filters.formats.forEach(function (v) { items.push(["formats", v]); });
     filters.conditions.forEach(function (v) { items.push(["conditions", v]); });
     filters.countries.forEach(function (v) { items.push(["countries", v]); });
+    var d = drawerFilters;
+    if (priceNarrowed()) items.push(["price", "$" + d.priceMin + "\u2013$" + d.priceMax]);
+    d.descriptions.forEach(function (v) { items.push(["descriptions", v]); });
+    d.years.forEach(function (v) { items.push(["years", v]); });
+    d.currencies.forEach(function (v) { items.push(["currencies", v]); });
+    if (d.acceptsOffers) items.push(["offers", "Accepts offers"]);
     return items;
   }
 
@@ -987,66 +999,137 @@
     return arr[((seed * 2654435761) >>> 3) % arr.length];
   }
 
-  function generatedListings(limit) {
-    var groups = DATA.listings.filter(function (g) {
-      if (filters.formats.length && filters.formats.indexOf(g.format) === -1) return false;
-      if (filters.conditions.length && filters.conditions.indexOf(g.condition) === -1) return false;
-      if (filters.countries.length && filters.countries.indexOf(g.country) === -1) return false;
-      return true;
-    });
+  // ---------- shop listing pool ----------
+  // One deterministic pool of ~160 listings, expanded from the real weighted
+  // groups (format / condition / country, n copies each) with every attribute
+  // the Filters sheet can act on: numeric price, the version's description
+  // tokens and year, a currency implied by the country, an accepts-offers
+  // flag and a listed date. Filters and Sort operate on this pool, so every
+  // control on the sheet has a visible, consistent effect.
+  var CURRENCY_BY_COUNTRY = { US: "USD", UK: "GBP", "United Kingdom": "GBP", Japan: "JPY", Canada: "CAD", Australia: "AUD", Brazil: "BRL", "South Korea": "KRW", "South Africa": "ZAR", Singapore: "SGD" };
+  function currencyFor(country) { return CURRENCY_BY_COUNTRY[country] || "EUR"; }
+  var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  function listedDaysAgo(listed) {
+    // LISTED_AGO mixes "18 minutes ago" / "3 hours ago" / "2 days ago" with
+    // dates like "Aug 28"; turn all of them into days before the prototype's
+    // fixed "today" (Sep 14) so Date listed sorts properly
+    var t = String(listed || ""), m;
+    if ((m = /(\d+)\s+minute/.exec(t))) return parseInt(m[1], 10) / 1440;
+    if ((m = /(\d+)\s+hour/.exec(t))) return parseInt(m[1], 10) / 24;
+    if ((m = /(\d+)\s+day/.exec(t))) return parseInt(m[1], 10);
+    if ((m = /([A-Z][a-z]{2})\s+(\d{1,2})/.exec(t))) {
+      var mi = MONTHS.indexOf(m[1]); if (mi === -1) return 0;
+      return Math.max(0, Math.round((Date.UTC(2026, 8, 14) - Date.UTC(2026, mi, parseInt(m[2], 10))) / 86400000));
+    }
+    return 0;
+  }
+  function descTokens(desc) {
+    return String(desc || "").split(",").map(function (t) { return t.trim(); }).filter(Boolean);
+  }
+
+  var shopPoolCache = null;
+  function shopPool() {
+    if (shopPoolCache) return shopPoolCache;
+    var groups = DATA.listings.slice().sort(function (a, b) { return (b.n || 1) - (a.n || 1); });
     var total = groups.reduce(function (t, g) { return t + (g.n || 1); }, 0);
-    var count = Math.min(limit, total);
-    if (!count) return [];
-    // allocate cards across groups proportionally (largest groups first)
-    groups = groups.slice().sort(function (a, b) { return (b.n || 1) - (a.n || 1); });
-    var out = [];
-    var gi = 0;
-    while (out.length < count) {
+    var count = 160, out = [], gi = 0;
+    while (out.length < count && gi < 2000) {
       var g = groups[gi % groups.length];
       var quota = Math.max(1, Math.round(((g.n || 1) / total) * count));
       for (var k = 0; k < quota && out.length < count; k++) {
         var seed = out.length + 1;
-        // pick a version matching the group's format (+country when possible)
         var pool = allVersions().filter(function (v) { return v.format === g.format && v.country === g.country && v.priceDisplay; });
         if (!pool.length) pool = allVersions().filter(function (v) { return v.format === g.format && v.priceDisplay; });
         if (!pool.length) pool = allVersions().filter(function (v) { return v.priceDisplay; });
         var v = seededPick(pool, seed * 13 + gi);
         var base = (v.priceDisplay && v.priceDisplay.typical) || DATA.master.aboutPrice || 30;
-        var jitter = 1 + ((((seed * 37) % 41) - 20) / 100); // deterministic +/-20%
+        var jitter = 1 + ((((seed * 37) % 41) - 20) / 100);
         var price = Math.max(2, base * (COND_FACTOR[g.condition] || 1) * jitter);
         var cents = [".00", ".00", ".50", ".99"][seed % 4];
         var sleeveIdx = Math.min(GRADES.length - 1, GRADES.indexOf(g.condition) + (seed % 2));
         var seller = seededPick(SELLER_POOL, seed * 7 + gi * 3);
+        var listed = seededPick(LISTED_AGO, seed * 5);
         out.push({
-          format: g.format,
-          title: v.title,
-          artist: v.artist,
-          description: v.description || g.format,
-          yearLine: String(v.year),
-          country: g.country,
-          media: g.condition, // full grade names on cards (frame 1836:93358)
-          sleeve: GRADES[sleeveIdx] || g.condition,
-          price: String(Math.floor(price)) + cents,
+          format: g.format, title: v.title, artist: v.artist,
+          description: v.description || g.format, descTokens: descTokens(v.description),
+          year: v.year, yearLine: String(v.year), country: g.country, currency: currencyFor(g.country),
+          media: g.condition, sleeve: GRADES[sleeveIdx] || g.condition,
+          priceNum: Math.floor(price) + parseFloat(cents), price: String(Math.floor(price)) + cents,
+          acceptsOffers: seed % 3 !== 0,
           note: seed % 3 === 0 ? seededPick(LISTING_NOTES, seed) : null,
-          listed: seededPick(LISTED_AGO, seed * 5),
+          listed: listed, listedDaysAgo: listedDaysAgo(listed),
           artwork: v.artwork,
-          seller: {
-            name: seller.name,
-            rating: seller.rating,
-            reviews: seller.reviews,
-            shipsFrom: COUNTRY_NAMES[g.country] || g.country,
-            indieSeal: seller.indieSeal,
-          },
+          seller: { name: seller.name, rating: seller.rating, reviews: seller.reviews, shipsFrom: COUNTRY_NAMES[g.country] || g.country, indieSeal: seller.indieSeal },
           freeShipping: seed % 4 === 1 ? "Free shipping over $" + (50 + (seed % 4) * 50) : null,
           sellerHasItems: seed % 5 === 2 ? "Seller has " + (3 + (seed * 11) % 40) + " items you Want" : null,
         });
       }
       gi++;
-      if (gi > 500) break; // safety
     }
-    // page shows "Sort: Price" ascending
-    out.sort(function (a, b) { return parseFloat(a.price) - parseFloat(b.price); });
+    // the pinned listing of the All versions top card joins the pool as a full citizen
+    var top = topShopListing(true);
+    if (top) out.unshift(top);
+    shopPoolCache = out;
     return out;
+  }
+
+  function passesBase(l) {
+    if (filters.formats.length && filters.formats.indexOf(l.format) === -1) return false;
+    if (filters.conditions.length && filters.conditions.indexOf(l.media) === -1) return false;
+    if (filters.countries.length && filters.countries.indexOf(l.country) === -1) return false;
+    return true;
+  }
+  function passesDrawer(l) {
+    var d = drawerFilters;
+    if (d.priceMin !== null && l.priceNum < d.priceMin) return false;
+    if (d.priceMax !== null && l.priceNum > d.priceMax) return false;
+    if (d.descriptions.length && !d.descriptions.some(function (t) { return l.descTokens.indexOf(t) !== -1; })) return false;
+    if (d.years.length && d.years.indexOf(String(l.year)) === -1) return false;
+    if (d.currencies.length && d.currencies.indexOf(l.currency) === -1) return false;
+    if (d.acceptsOffers && !l.acceptsOffers) return false;
+    return true;
+  }
+  function drawerActive() {
+    var d = drawerFilters;
+    return !!(d.descriptions.length || d.years.length || d.currencies.length || d.acceptsOffers || priceNarrowed());
+  }
+  function priceNarrowed() {
+    var d = drawerFilters; if (d.priceMin === null && d.priceMax === null) return false;
+    var p = fsPrices(); return d.priceMin > Math.min.apply(null, p) || d.priceMax < Math.max.apply(null, p);
+  }
+
+  function sortListings(arr) {
+    var asc = sortState.order === "Low to high", by = sortState.by;
+    return arr.slice().sort(function (a, b) {
+      var d;
+      if (by === "Condition") d = GRADES.indexOf(b.media) - GRADES.indexOf(a.media); // GRADES runs Mint -> Poor: "low" = worst
+      else if (by === "Date listed") d = b.listedDaysAgo - a.listedDaysAgo;            // "low" = oldest
+      else d = a.priceNum - b.priceNum;
+      return asc ? d : -d;
+    });
+  }
+
+  // what the shop page shows: pool -> filters -> sort. Under the default sort
+  // the pinned Rumours listing leads; once the user sorts, it takes its
+  // natural place so the order is honest.
+  function visibleListings() {
+    var list = sortListings(shopPool().filter(function (l) { return passesBase(l) && passesDrawer(l); }));
+    if (sortState.by + "|" + sortState.order === SORT_DEFAULT) {
+      var i = -1; list.some(function (l, k) { if (l.isTop) { i = k; return true; } });
+      if (i > 0) list.unshift(list.splice(i, 1)[0]);
+    }
+    return list;
+  }
+
+  // Result counts: the weighted groups give the real total for format /
+  // condition / country; the sheet's other facets can't be counted from
+  // groups, so scale that total by the pool's pass ratio — representational,
+  // and always consistent with what the list shows.
+  function shopResultCount() {
+    var base = matchCount();
+    if (!drawerActive()) return base;
+    var pool = shopPool(), b = pool.filter(passesBase), a = b.filter(passesDrawer);
+    return b.length ? Math.round(base * (a.length / b.length)) : 0;
   }
 
   function shopScreenHTML() {
@@ -1076,7 +1159,7 @@
       (n > 0 ? '<span class="badge">' + n + "</span>" : "") +
       "</button>" +
       '<button class="pill-button tappable" data-action="shop-sort">' +
-      '<span class="surface"><span class="sort-prefix">Sort:</span> Price <img class="i-sort" src="shared/assets/icon-sort-asc.svg" alt="" /></span>' +
+      '<span class="surface"><span class="sort-prefix">Sort:</span> ' + esc(sortState.by) + ' <img class="i-sort' + (sortState.order === "Low to high" ? " asc" : " desc") + '" src="shared/assets/icon-sort-asc.svg" alt="" /></span>' +
       "</button>" +
       "</div>" +
       "</div>" +
@@ -1173,6 +1256,159 @@
     );
   }
 
+  // ---------- All versions: filters + sort (frame 1494:22414 pills) ----------
+  // Operate on the real version list. Facets: format, country, release year,
+  // format description; sort: year, for sale, price, rating, either order.
+  var vsFilters = { formats: [], countries: [], years: [], descriptions: [] };
+  var vsSort = { by: "Year", order: "Low to high" };
+  var VS_SORTS = ["Year", "For sale", "Price", "Rating"];
+
+  function vsPasses(v) {
+    var f = vsFilters;
+    if (f.formats.length && f.formats.indexOf(v.format) === -1) return false;
+    if (f.countries.length && f.countries.indexOf(v.country) === -1) return false;
+    if (f.years.length && f.years.indexOf(String(v.year)) === -1) return false;
+    if (f.descriptions.length && !f.descriptions.some(function (t) { return descTokens(v.description).indexOf(t) !== -1; })) return false;
+    return true;
+  }
+  function vsKey(v) {
+    if (vsSort.by === "For sale") return v.copiesForSale || 0;
+    if (vsSort.by === "Price") return (v.priceDisplay && v.priceDisplay.typical) || 0;
+    if (vsSort.by === "Rating") return v.rating || 0;
+    return v.year || 0;
+  }
+  function vsVersions() {
+    var asc = vsSort.order === "Low to high";
+    return allVersions().filter(vsPasses).sort(function (a, b) { var d = vsKey(a) - vsKey(b); return asc ? d : -d; });
+  }
+  function vsFilterCount() { var f = vsFilters; return f.formats.length + f.countries.length + f.years.length + f.descriptions.length; }
+  function vsFacet(key) {
+    var out = [];
+    allVersions().forEach(function (v) {
+      var vals = key === "descriptions" ? descTokens(v.description) : [String(key === "years" ? v.year : key === "formats" ? v.format : v.country)];
+      vals.forEach(function (x) { if (x && out.indexOf(x) === -1) out.push(x); });
+    });
+    if (key === "years") out.sort();
+    return out;
+  }
+
+  function vsCardsHTML() {
+    var list = vsVersions();
+    if (!list.length) return '<p class="sr-hint vs-empty">No versions match these filters</p>';
+    return list.map(function (v, i) { return versionsPageCardHTML(v, i === 0); }).join("");
+  }
+  function vsPillsHTML() {
+    var n = vsFilterCount();
+    return (
+      '<button class="pill-button tappable' + (n ? " applied" : "") + '" data-action="vs-filters">' +
+      '<span class="surface">Filters <img class="i-filter" src="shared/assets/icon-filter.svg" alt="" /></span>' +
+      (n ? '<span class="badge">' + n + "</span>" : "") +
+      "</button>" +
+      '<button class="pill-button tappable" data-action="vs-sort">' +
+      '<span class="surface"><span class="sort-prefix">Sort:</span> ' + esc(vsSort.by) +
+      ' <img class="i-sort' + (vsSort.order === "Low to high" ? " asc" : " desc") + '" src="shared/assets/icon-sort-asc.svg" alt="" /></span>' +
+      "</button>"
+    );
+  }
+  function refreshVersionsList() {
+    var cards = document.querySelector("#screen-versions .vs-cards");
+    if (cards) cards.innerHTML = vsCardsHTML();
+    var pills = document.getElementById("vs-pills");
+    if (pills) pills.innerHTML = vsPillsHTML();
+  }
+
+  // --- filters sheet ---
+  var vsSheetEl = null, vsScrimEl = null;
+  function vsChipHTML(group, value) {
+    var sel = vsFilters[group].indexOf(String(value)) !== -1;
+    return '<button class="pf-chip tappable' + (sel ? " selected" : "") + '" data-action="vsf-chip" data-group="' + group + '" data-value="' + esc(String(value)) + '">' +
+      '<span class="surface"><span class="label">' + esc(String(value)) + "</span></span></button>";
+  }
+  function vsFilterSheetHTML() {
+    var card = function (title, group) {
+      return '<div class="pf-card"><h2>' + title + '</h2><div class="pf-chips no-clamp">' + vsFacet(group).map(function (x) { return vsChipHTML(group, x); }).join("") + "</div></div>";
+    };
+    return (
+      '<div class="fs-header">' +
+      '<button class="fs-close tappable" data-action="vsf-close" aria-label="Close"><span class="x"></span></button>' +
+      "<h1>Filters</h1>" + '<span class="fs-close-spacer"></span>' +
+      "</div>" +
+      '<div class="fs-body">' +
+      card("Formats", "formats") + card("Country", "countries") + card("Release Year", "years") + card("Format Description", "descriptions") +
+      "</div>" +
+      '<div class="pf-action-bar">' +
+      '<button class="pf-reset tappable" data-action="vsf-clear">Clear all</button>' +
+      '<button class="pf-cta d-pf-cta tappable" data-action="vsf-close" id="vsf-cta">View ' + vsVersions().length + " versions</button>" +
+      "</div>"
+    );
+  }
+  function openVsFilterSheet() {
+    if (vsSheetEl) return;
+    vsScrimEl = document.createElement("div"); vsScrimEl.className = "sheet-scrim";
+    vsScrimEl.addEventListener("click", function () { history.back(); });
+    vsSheetEl = document.createElement("div"); vsSheetEl.className = "filter-sheet";
+    vsSheetEl.innerHTML = vsFilterSheetHTML();
+    document.body.appendChild(vsScrimEl); document.body.appendChild(vsSheetEl);
+    requestAnimationFrame(function () { requestAnimationFrame(function () { vsScrimEl.classList.add("in"); vsSheetEl.classList.add("in"); }); });
+    history.pushState({ screen: "vfilters" }, "", "#vfilters");
+  }
+  function closeVsFilterSheet() {
+    if (!vsSheetEl) return;
+    var sh = vsSheetEl, sc = vsScrimEl; vsSheetEl = null; vsScrimEl = null;
+    sh.classList.remove("in"); sc.classList.remove("in");
+    setTimeout(function () { sh.remove(); sc.remove(); }, 350);
+  }
+  function refreshVsSheet() {
+    if (!vsSheetEl) return;
+    vsSheetEl.querySelectorAll(".pf-chip[data-action=\"vsf-chip\"]").forEach(function (c) {
+      c.classList.toggle("selected", vsFilters[c.dataset.group].indexOf(c.dataset.value) !== -1);
+    });
+    var cta = vsSheetEl.querySelector("#vsf-cta");
+    if (cta) cta.textContent = "View " + vsVersions().length + " versions";
+  }
+
+  // --- sort sheet ---
+  var vsSortSheetEl = null, vsSortScrimEl = null;
+  function vsSortRadioHTML(group, value, extra) {
+    var sel = vsSort[group] === value;
+    return '<button class="sort-row tappable" data-action="vsort-opt" data-group="' + group + '" data-value="' + esc(value) + '">' +
+      (extra ? '<span class="sort-arrow">' + extra + "</span>" : "") +
+      '<span class="sort-label">' + esc(value) + "</span>" +
+      '<span class="sort-radio' + (sel ? " selected" : "") + '"></span></button>';
+  }
+  function vsSortSheetHTML() {
+    return (
+      '<div class="fs-header">' +
+      '<button class="fs-close tappable" data-action="vsort-close" aria-label="Close"><span class="x"></span></button>' +
+      "<h1>Sort</h1>" + '<span class="fs-close-spacer"></span>' +
+      "</div>" +
+      '<div class="sort-body">' +
+      '<p class="sort-sec-title">Order</p>' +
+      vsSortRadioHTML("order", "Low to high", "↑") + vsSortRadioHTML("order", "High to low", "↓") +
+      '<div class="vp-divider"></div>' +
+      '<p class="sort-sec-title">Sort By</p>' +
+      VS_SORTS.map(function (k) { return vsSortRadioHTML("by", k); }).join("") +
+      "</div>" +
+      '<div class="sort-action-bar"><button class="sort-apply tappable" data-action="vsort-apply">Apply</button></div>'
+    );
+  }
+  function openVsSortSheet() {
+    if (vsSortSheetEl) return;
+    vsSortScrimEl = document.createElement("div"); vsSortScrimEl.className = "sheet-scrim";
+    vsSortScrimEl.addEventListener("click", function () { history.back(); });
+    vsSortSheetEl = document.createElement("div"); vsSortSheetEl.className = "filter-sheet sort-sheet";
+    vsSortSheetEl.innerHTML = vsSortSheetHTML();
+    document.body.appendChild(vsSortScrimEl); document.body.appendChild(vsSortSheetEl);
+    requestAnimationFrame(function () { requestAnimationFrame(function () { vsSortScrimEl.classList.add("in"); vsSortSheetEl.classList.add("in"); }); });
+    history.pushState({ screen: "vsort" }, "", "#vsort");
+  }
+  function closeVsSortSheet() {
+    if (!vsSortSheetEl) return;
+    var sh = vsSortSheetEl, sc = vsSortScrimEl; vsSortSheetEl = null; vsSortScrimEl = null;
+    sh.classList.remove("in"); sc.classList.remove("in");
+    setTimeout(function () { sh.remove(); sc.remove(); }, 350);
+  }
+
   function versionsScreenHTML() {
     var m = DATA.master;
     return (
@@ -1205,21 +1441,9 @@
       '<span class="placeholder">Search versions</span>' +
       "</button>" +
       "</div>" +
-      '<div class="shop-filter-row">' +
-      '<button class="pill-button tappable" data-action="vs-filters">' +
-      '<span class="surface">Filters <img class="i-filter" src="shared/assets/icon-filter.svg" alt="" /></span>' +
-      "</button>" +
-      '<button class="pill-button tappable" data-action="vs-sort">' +
-      '<span class="surface"><span class="sort-prefix">Sort:</span> Year <img class="i-sort" src="shared/assets/icon-sort-asc.svg" alt="" /></span>' +
-      "</button>" +
-      "</div>" +
+      '<div class="shop-filter-row" id="vs-pills">' + vsPillsHTML() + "</div>" +
       "</div>" + // /vs-topblock
-      '<div class="vs-cards">' +
-      allVersions()
-        .sort(function (a, b) { return a.year - b.year; }) // page is "Sort: Year"
-        .map(function (v, i) { return versionsPageCardHTML(v, i === 0); }) // top result gets the eye
-        .join("") +
-      "</div>" +
+      '<div class="vs-cards">' + vsCardsHTML() + "</div>" +
       "</div>" + // /vs-scroll
       '<div class="tab-bar in-screen">' +
       '<button class="tab-bar-item active tappable" data-action="tabbar-explore">' +
@@ -1830,7 +2054,7 @@
       // action bar
       '<div class="pf-action-bar">' +
       '<button class="pf-reset tappable" data-action="fs-clear">Clear all</button>' +
-      '<button class="pf-cta d-pf-cta tappable" data-action="fs-close" id="fs-cta">View ' + fmtN(matchCount()) + " Results</button>" +
+      '<button class="pf-cta d-pf-cta tappable" data-action="fs-close" id="fs-cta">View ' + fmtN(shopResultCount()) + " Results</button>" +
       "</div>"
     );
   }
@@ -1841,7 +2065,8 @@
   // Selection persists; Apply closes and the shop Sort pill reflects it.
   // Listings are fixture cards, so re-ordering them is out of scope (logged).
 
-  var sortState = { order: "High to low", by: "Price" };
+  var sortState = { order: "Low to high", by: "Price" }; // the list opens cheapest-first
+  var SORT_DEFAULT = "Price|Low to high";
   var sortSheetEl = null, sortScrimEl = null;
 
   function sortRadioHTML(group, value, extra) {
@@ -2017,8 +2242,12 @@
     var co = sheetEl.querySelector("#fs-countries");
     if (co) co.innerHTML = DATA.shipsFromCountries.map(countryChipHTML).join("");
     var cta = sheetEl.querySelector("#fs-cta");
-    if (cta) cta.textContent = "View " + fmtN(matchCount()) + " Results";
+    if (cta) cta.textContent = "View " + fmtN(shopResultCount()) + " Results";
     refreshShopFilters();
+  }
+  function refreshSheetCount() {
+    var cta = sheetEl && sheetEl.querySelector("#fs-cta");
+    if (cta) cta.textContent = "View " + fmtN(shopResultCount()) + " Results";
   }
 
   // dual-thumb price slider (visual; values shown in the boxes)
@@ -2041,6 +2270,7 @@
       drawerFilters.priceMin = lv; drawerFilters.priceMax = hv;
       sheetEl.querySelector("#fs-price-lo").textContent = "$" + lv;
       sheetEl.querySelector("#fs-price-hi").textContent = "$" + hv;
+      refreshSheetCount();
       // dim histogram bars outside the selected range (frame 1847:152566)
       var n = bars.length;
       for (var i = 0; i < n; i++) {
@@ -2061,6 +2291,7 @@
         function up() {
           thumb.removeEventListener("pointermove", move);
           thumb.removeEventListener("pointerup", up);
+          refreshShopFilters(); refreshFilterSheet(); // apply the range to the listings
         }
         thumb.addEventListener("pointermove", move);
         thumb.addEventListener("pointerup", up);
@@ -2103,6 +2334,8 @@
     if (id !== "filters") closeFilterSheet();
     if (id !== "sort") closeSortSheet();
     if (id !== "grading") closeGradingSheet();
+    if (id !== "vfilters") closeVsFilterSheet();
+    if (id !== "vsort") closeVsSortSheet();
     // pop overlays until the top matches the current history entry;
     // underlying screens keep their DOM (and scroll) untouched
     while (screenStack.length && screenStack[screenStack.length - 1].id !== id) {
@@ -2139,8 +2372,26 @@
       }
     },
     "vs-search": function () { toast(); },
-    "vs-filters": function () { toast(); },
-    "vs-sort": function () { toast(); },
+    "vs-filters": function () { openVsFilterSheet(); },
+    "vs-sort": function () { openVsSortSheet(); },
+    "vsf-close": function () { history.back(); },
+    "vsf-chip": function (el) {
+      var arr = vsFilters[el.dataset.group], i = arr.indexOf(el.dataset.value);
+      if (i === -1) arr.push(el.dataset.value); else arr.splice(i, 1);
+      refreshVsSheet(); refreshVersionsList();
+    },
+    "vsf-clear": function () {
+      vsFilters = { formats: [], countries: [], years: [], descriptions: [] };
+      refreshVsSheet(); refreshVersionsList();
+    },
+    "vsort-close": function () { history.back(); },
+    "vsort-opt": function (el) {
+      vsSort[el.dataset.group] = el.dataset.value;
+      if (vsSortSheetEl) vsSortSheetEl.querySelectorAll(".sort-row").forEach(function (row) {
+        row.querySelector(".sort-radio").classList.toggle("selected", vsSort[row.dataset.group] === row.dataset.value);
+      });
+    },
+    "vsort-apply": function () { refreshVersionsList(); history.back(); },
     "pf-back": function () { history.back(); },
     "more-formats": function () {
       pfFormatsExpanded = true;
@@ -2203,15 +2454,22 @@
       var i = arr.indexOf(el.dataset.value);
       if (i === -1) arr.push(el.dataset.value); else arr.splice(i, 1);
       el.classList.toggle("selected");
+      refreshSheetCount(); refreshShopFilters(); refreshFilterSheet();
     },
     "fs-offers": function (el) {
       drawerFilters.acceptsOffers = !drawerFilters.acceptsOffers;
       el.classList.toggle("on");
+      refreshSheetCount(); refreshShopFilters(); refreshFilterSheet();
     },
     "af-remove": function (el) {
-      var arr = filters[el.dataset.group];
-      var i = arr.indexOf(el.dataset.value);
-      if (i !== -1) arr.splice(i, 1);
+      var g = el.dataset.group;
+      if (g === "price") { drawerFilters.priceMin = null; drawerFilters.priceMax = null; if (sheetEl) initFsSlider(); }
+      else if (g === "offers") drawerFilters.acceptsOffers = false;
+      else {
+        var arr = filters[g] || drawerFilters[g] || [];
+        var i = arr.indexOf(el.dataset.value);
+        if (i !== -1) arr.splice(i, 1);
+      }
       refreshFilterSheet();
       refreshPrefilter(); // keep the pre-filter behind in sync
       refreshShopFilters();
@@ -2229,6 +2487,7 @@
     },
     "sort-apply": function () {
       refreshSortPill();
+      refreshShopFilters(); // re-order the listings
       history.back();
     },
     listing: function () { toast(); },
@@ -2620,10 +2879,14 @@
   }
 
   function searchResultsHTML() {
-    var q = searchState.q.trim().toLowerCase();
-    if (!q) {
+    var raw = searchState.q.trim().toLowerCase();
+    if (!raw) {
       return '<p class="sr-hint">Search for artists, albums, labels, and more</p>';
     }
+    // "rumor"/"rumors" (US spelling) resolve to the baked "rumour(s)" data,
+    // with a note so the correction is visible
+    var q = raw.replace(/\brumor(s?)\b/g, "rumour$1");
+    var corrected = q !== raw;
     var d = typeof SEARCH_DATA !== "undefined" && SEARCH_DATA[q];
     // The baked prefixes stop at "fleetwood mac". Keep typing toward Rumours
     // and the query resolves to that master alone as the top result (the
@@ -2634,7 +2897,7 @@
       return '<p class="sr-hint">No results for \u201C' + esc(searchState.q.trim()) + '\u201D</p>';
     }
     var t = searchState.tab;
-    var html = "";
+    var html = corrected ? '<p class="sr-corrected">Showing results for <b>' + esc(q) + "</b></p>" : "";
     var showMasters = t === "All" || t === "Master";
     var showArtists = t === "All" || t === "Artists";
     var showLabels = t === "All" || t === "Labels";
