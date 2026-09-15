@@ -777,7 +777,7 @@
     l.descTokens = descTokens(r.description);
     l.currency = currencyFor(r.country);
     l.acceptsOffers = true;
-    l.listed = r.listed || "Sep 12";
+    l.listed = r.listed || "2 hours ago";
     l.listedDaysAgo = listedDaysAgo(l.listed);
     l.isTop = true;
     if (raw) return l;
@@ -1024,7 +1024,9 @@
 
   // relative timestamps per the Cards doc (minutes < 1h, hours < 24h,
   // days < 7d, then a date)
-  var LISTED_AGO = ["18 minutes ago", "3 hours ago", "11 hours ago", "1 day ago", "2 days ago", "4 days ago", "6 days ago", "Aug 28"];
+  // relative only (user): hours / days, then weeks from 7 days ("1 week ago",
+  // never "7 days ago") up to 3 weeks, then "1 month ago" — no calendar dates
+  var LISTED_AGO = ["18 minutes ago", "3 hours ago", "11 hours ago", "1 day ago", "2 days ago", "4 days ago", "6 days ago", "1 week ago", "2 weeks ago", "3 weeks ago", "1 month ago"];
 
   function seededPick(arr, seed) {
     return arr[((seed * 2654435761) >>> 3) % arr.length];
@@ -1039,19 +1041,15 @@
   // control on the sheet has a visible, consistent effect.
   var CURRENCY_BY_COUNTRY = { US: "USD", UK: "GBP", "United Kingdom": "GBP", Japan: "JPY", Canada: "CAD", Australia: "AUD", Brazil: "BRL", "South Korea": "KRW", "South Africa": "ZAR", Singapore: "SGD" };
   function currencyFor(country) { return CURRENCY_BY_COUNTRY[country] || "EUR"; }
-  var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   function listedDaysAgo(listed) {
-    // LISTED_AGO mixes "18 minutes ago" / "3 hours ago" / "2 days ago" with
-    // dates like "Aug 28"; turn all of them into days before the prototype's
-    // fixed "today" (Sep 14) so Date listed sorts properly
+    // "18 minutes ago" / "3 hours ago" / "2 days ago" / "2 weeks ago" /
+    // "1 month ago" -> days, so Date listed sorts newest-first correctly
     var t = String(listed || ""), m;
     if ((m = /(\d+)\s+minute/.exec(t))) return parseInt(m[1], 10) / 1440;
     if ((m = /(\d+)\s+hour/.exec(t))) return parseInt(m[1], 10) / 24;
     if ((m = /(\d+)\s+day/.exec(t))) return parseInt(m[1], 10);
-    if ((m = /([A-Z][a-z]{2})\s+(\d{1,2})/.exec(t))) {
-      var mi = MONTHS.indexOf(m[1]); if (mi === -1) return 0;
-      return Math.max(0, Math.round((Date.UTC(2026, 8, 14) - Date.UTC(2026, mi, parseInt(m[2], 10))) / 86400000));
-    }
+    if ((m = /(\d+)\s+week/.exec(t))) return parseInt(m[1], 10) * 7;
+    if ((m = /(\d+)\s+month/.exec(t))) return parseInt(m[1], 10) * 30;
     return 0;
   }
   function descTokens(desc) {
@@ -2102,8 +2100,8 @@
   // Selection persists; Apply closes and the shop Sort pill reflects it.
   // Listings are fixture cards, so re-ordering them is out of scope (logged).
 
-  var sortState = { order: "Low to high", by: "Price" }; // the list opens cheapest-first
-  var SORT_DEFAULT = "Price|Low to high";
+  var sortState = { order: "High to low", by: "Date listed" }; // newest listings first (user)
+  var SORT_DEFAULT = "Date listed|High to low";
   var sortSheetEl = null, sortScrimEl = null;
 
   function sortRadioHTML(group, value, extra) {
