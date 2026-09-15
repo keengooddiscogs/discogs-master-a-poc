@@ -628,6 +628,19 @@
     );
   }
 
+  // Find your copy carries every facet the shop's Filters sheet has, in the
+  // same order; the first three are open, the rest fold behind a chevron
+  var pfOpen = { price: false, descriptions: false, years: false, offers: false, currencies: false };
+  function pfCollapsibleHTML(key, title, body, bodyClass) {
+    return (
+      '<div class="pf-card collapsible' + (pfOpen[key] ? "" : " closed") + '" data-card="' + key + '">' +
+      '<button class="pf-card-head tappable" data-action="pf-toggle" data-card="' + key + '" aria-expanded="' + (pfOpen[key] ? "true" : "false") + '">' +
+      "<h2>" + title + '</h2><img class="pf-card-chev" src="shared/assets/b-chevdown.svg" alt="" /></button>' +
+      '<div class="pf-card-body' + (bodyClass ? " " + bodyClass : "") + '">' + body + "</div>" +
+      "</div>"
+    );
+  }
+
   function prefilterScreenHTML() {
     var m = DATA.master;
     return (
@@ -672,11 +685,17 @@
       "<h2>Ships from Country</h2>" +
       '<div class="pf-chips" id="pf-countries">' + DATA.shipsFromCountries.map(countryChipHTML).join("") + "</div>" +
       "</div>" +
+      // the remaining shop-sheet facets, same order, collapsed (user)
+      pfCollapsibleHTML("price", "Price Range", priceBodyHTML("pf")) +
+      pfCollapsibleHTML("descriptions", "Format Description", descBodyHTML()) +
+      pfCollapsibleHTML("years", "Release Year", yearsBodyHTML()) +
+      pfCollapsibleHTML("offers", "Accepts offers", offersBodyHTML(), "offers-row") +
+      pfCollapsibleHTML("currencies", "Currency", currencyBodyHTML()) +
       "</div>" +
       // action bar
       '<div class="pf-action-bar">' +
       '<button class="pf-reset tappable" data-action="pf-clear">Reset</button>' +
-      '<button class="pf-cta d-pf-cta tappable" data-action="pf-shop" id="pf-cta">Shop ' + fmtN(matchCount()) + " listings</button>" +
+      '<button class="pf-cta d-pf-cta tappable" data-action="pf-shop" id="pf-cta">Shop ' + fmtN(shopResultCount()) + " listings</button>" +
       "</div>"
     );
   }
@@ -712,9 +731,21 @@
     if ((el = document.getElementById("pf-formats"))) el.innerHTML = formatTilesHTML();
     if ((el = document.getElementById("pf-conditions"))) el.innerHTML = GRADES.map(conditionChipHTML).join("");
     if ((el = document.getElementById("pf-countries"))) el.innerHTML = DATA.shipsFromCountries.map(countryChipHTML).join("");
-    if ((el = document.getElementById("pf-cta"))) el.textContent = "Shop " + fmtN(matchCount()) + " listings";
+    refreshPrefilterCount();
     var scr = document.getElementById("screen-prefilter");
-    if (scr) clampChipGroups(scr);
+    if (!scr) return;
+    // drawer facets live in both surfaces: mirror the shared state here
+    scr.querySelectorAll('.pf-chip[data-action="fs-chip"]').forEach(function (c) {
+      c.classList.toggle("selected", drawerFilters[c.dataset.group].indexOf(c.dataset.value) !== -1);
+    });
+    var tg = scr.querySelector('[data-action="fs-offers"]');
+    if (tg) tg.classList.toggle("on", drawerFilters.acceptsOffers);
+    initPriceSlider(scr, "pf");
+    clampChipGroups(scr);
+  }
+  function refreshPrefilterCount() {
+    var el = document.getElementById("pf-cta");
+    if (el) el.textContent = "Shop " + fmtN(shopResultCount()) + " listings";
   }
 
   // ---------- shop master screen (frame 1491:107920) ----------
@@ -1968,6 +1999,44 @@
     return allVersions().map(function (v) { return v.priceDisplay && v.priceDisplay.typical; }).filter(Boolean);
   }
 
+  // Facet values shared by the Filters sheet and the Find your copy screen
+  function fsFacetValues() {
+    var descs = [], years = [];
+    allVersions().forEach(function (v) {
+      descTokens(v.description).forEach(function (t) { if (descs.indexOf(t) === -1) descs.push(t); });
+      if (years.indexOf(v.year) === -1) years.push(v.year);
+    });
+    years.sort();
+    return { descs: descs, years: years, currencies: ["USD", "EUR", "GBP", "CAD", "AUD", "CHF", "JPY", "BRL", "SEK", "DKK"] };
+  }
+  function priceBounds() { var p = fsPrices(); return { min: Math.min.apply(null, p), max: Math.max.apply(null, p) }; }
+  // the same five facet bodies render on both surfaces; ids carry a prefix
+  // ("fs" sheet, "pf" pre-filter) because both screens can be in the DOM
+  function priceBodyHTML(prefix) {
+    var b = priceBounds();
+    var lo = drawerFilters.priceMin === null ? b.min : drawerFilters.priceMin;
+    var hi = drawerFilters.priceMax === null ? b.max : drawerFilters.priceMax;
+    return (
+      fsHistogramHTML() +
+      '<div class="fs-slider" id="' + prefix + '-slider">' +
+      '<span class="rail"></span><span class="fill" id="' + prefix + '-fill"></span>' +
+      '<span class="thumb" id="' + prefix + '-thumb-lo"></span><span class="thumb" id="' + prefix + '-thumb-hi"></span>' +
+      "</div>" +
+      '<div class="fs-price-inputs">' +
+      '<span class="box" id="' + prefix + '-price-lo">$' + lo + '</span><span class="to">to</span><span class="box" id="' + prefix + '-price-hi">$' + hi + "</span>" +
+      "</div>"
+    );
+  }
+  function chipsBodyHTML(group, values) {
+    return '<div class="pf-chips">' + values.map(function (v) { return fsChipHTML(group, v, drawerFilters[group].indexOf(String(v)) !== -1); }).join("") + "</div>";
+  }
+  function descBodyHTML() { return chipsBodyHTML("descriptions", fsFacetValues().descs); }
+  function yearsBodyHTML() { return chipsBodyHTML("years", fsFacetValues().years); }
+  function currencyBodyHTML() { return chipsBodyHTML("currencies", fsFacetValues().currencies); }
+  function offersBodyHTML() {
+    return '<button class="fs-toggle' + (drawerFilters.acceptsOffers ? " on" : "") + ' tappable" data-action="fs-offers" aria-label="Accepts offers"><span class="knob"></span></button>';
+  }
+
   function fsChipHTML(group, value, selected) {
     return (
       '<button class="pf-chip tappable' + (selected ? " selected" : "") + '" data-action="fs-chip" data-group="' + group + '" data-value="' + esc(String(value)) + '">' +
@@ -1995,20 +2064,6 @@
 
   function filterSheetHTML() {
     var m = DATA.master;
-    var prices = fsPrices();
-    var lo = drawerFilters.priceMin === null ? Math.min.apply(null, prices) : drawerFilters.priceMin;
-    var hi = drawerFilters.priceMax === null ? Math.max.apply(null, prices) : drawerFilters.priceMax;
-    var descs = [];
-    allVersions().forEach(function (v) {
-      String(v.description || "").split(",").forEach(function (part) {
-        part = part.trim();
-        if (part && descs.indexOf(part) === -1) descs.push(part);
-      });
-    });
-    var years = [];
-    allVersions().forEach(function (v) { if (years.indexOf(v.year) === -1) years.push(v.year); });
-    years.sort();
-    var currencies = ["USD", "EUR", "GBP", "CAD", "AUD", "CHF", "JPY", "BRL", "SEK", "DKK"];
     return (
       '<div class="fs-header">' +
       '<button class="fs-close tappable" data-action="fs-close" aria-label="Close"><span class="x"></span></button>' +
@@ -2027,29 +2082,11 @@
       // ships from country
       '<div class="pf-card"><h2>Ships from Country</h2>' +
       '<div class="pf-chips" id="fs-countries">' + DATA.shipsFromCountries.map(countryChipHTML).join("") + "</div></div>" +
-      // price range (real histogram + dual slider + inputs; count-inert)
-      '<div class="pf-card"><h2>Price Range</h2>' +
-      fsHistogramHTML() +
-      '<div class="fs-slider" id="fs-slider">' +
-      '<span class="rail"></span><span class="fill" id="fs-fill"></span>' +
-      '<span class="thumb" id="fs-thumb-lo"></span><span class="thumb" id="fs-thumb-hi"></span>' +
-      "</div>" +
-      '<div class="fs-price-inputs">' +
-      '<span class="box" id="fs-price-lo">$' + lo + '</span><span class="to">to</span><span class="box" id="fs-price-hi">$' + hi + "</span>" +
-      "</div></div>" +
-      // format description (real descriptors from version format strings)
-      '<div class="pf-card"><h2>Format Description</h2>' +
-      '<div class="pf-chips">' + descs.map(function (d) { return fsChipHTML("descriptions", d, drawerFilters.descriptions.indexOf(d) !== -1); }).join("") + "</div></div>" +
-      // release year (real years)
-      '<div class="pf-card"><h2>Release Year</h2>' +
-      '<div class="pf-chips">' + years.map(function (y) { return fsChipHTML("years", y, drawerFilters.years.indexOf(String(y)) !== -1); }).join("") + "</div></div>" +
-      // accepts offers toggle
-      '<div class="pf-card fs-offers"><h2>Accepts offers</h2>' +
-      '<button class="fs-toggle' + (drawerFilters.acceptsOffers ? " on" : "") + ' tappable" data-action="fs-offers" aria-label="Accepts offers"><span class="knob"></span></button>' +
-      "</div>" +
-      // currency (frame list; not in dataset)
-      '<div class="pf-card"><h2>Currency</h2>' +
-      '<div class="pf-chips">' + currencies.map(function (c) { return fsChipHTML("currencies", c, drawerFilters.currencies.indexOf(c) !== -1); }).join("") + "</div></div>" +
+      '<div class="pf-card"><h2>Price Range</h2>' + priceBodyHTML("fs") + "</div>" +
+      '<div class="pf-card"><h2>Format Description</h2>' + descBodyHTML() + "</div>" +
+      '<div class="pf-card"><h2>Release Year</h2>' + yearsBodyHTML() + "</div>" +
+      '<div class="pf-card fs-offers"><h2>Accepts offers</h2>' + offersBodyHTML() + "</div>" +
+      '<div class="pf-card"><h2>Currency</h2>' + currencyBodyHTML() + "</div>" +
       "</div>" +
       // action bar
       '<div class="pf-action-bar">' +
@@ -2250,48 +2287,51 @@
     if (cta) cta.textContent = "View " + fmtN(shopResultCount()) + " Results";
   }
 
-  // dual-thumb price slider (visual; values shown in the boxes)
-  function initFsSlider() {
-    var slider = sheetEl.querySelector("#fs-slider");
+  // Dual-thumb price slider. Positions derive from drawerFilters so the
+  // sheet's and the pre-filter's sliders always agree; each element is wired
+  // once (re-calls just re-sync).
+  function initPriceSlider(root, prefix) {
+    var slider = root && root.querySelector("#" + prefix + "-slider");
     if (!slider) return;
-    var prices = fsPrices();
-    var min = Math.min.apply(null, prices), max = Math.max.apply(null, prices);
-    var lo = 0, hi = 1;
-    var loT = sheetEl.querySelector("#fs-thumb-lo"), hiT = sheetEl.querySelector("#fs-thumb-hi"), fill = sheetEl.querySelector("#fs-fill");
-    var bars = sheetEl.querySelectorAll(".fs-histogram span");
+    if (slider._sync) { slider._sync(); return; }
+    var loT = root.querySelector("#" + prefix + "-thumb-lo"), hiT = root.querySelector("#" + prefix + "-thumb-hi"), fill = root.querySelector("#" + prefix + "-fill");
+    var bars = root.querySelectorAll("#" + prefix + "-slider ~ .fs-histogram span, .fs-histogram span");
+    function frac() {
+      var b = priceBounds(), span = (b.max - b.min) || 1;
+      var lo = drawerFilters.priceMin === null ? 0 : (drawerFilters.priceMin - b.min) / span;
+      var hi = drawerFilters.priceMax === null ? 1 : (drawerFilters.priceMax - b.min) / span;
+      return { lo: Math.max(0, Math.min(1, lo)), hi: Math.max(0, Math.min(1, hi)), b: b };
+    }
     function render() {
-      // the thumb is a 44px hit area with an 18px dot centred in it: the dot
-      // travels the rail (p * (width - 18)), so the box sits 13px left of that
+      var f = frac(), lo = f.lo, hi = f.hi;
+      // 44px hit area with an 18px dot centred in it: the dot travels the rail
       loT.style.left = "calc(" + lo * 100 + "% - " + lo * 18 + "px - 13px)";
       hiT.style.left = "calc(" + hi * 100 + "% - " + hi * 18 + "px - 13px)";
-      fill.style.left = lo * 100 + "%";
-      fill.style.right = (1 - hi) * 100 + "%";
-      var lv = Math.round(min + lo * (max - min)), hv = Math.round(min + hi * (max - min));
-      drawerFilters.priceMin = lv; drawerFilters.priceMax = hv;
-      sheetEl.querySelector("#fs-price-lo").textContent = "$" + lv;
-      sheetEl.querySelector("#fs-price-hi").textContent = "$" + hv;
-      refreshSheetCount();
-      // dim histogram bars outside the selected range (frame 1847:152566)
-      var n = bars.length;
-      for (var i = 0; i < n; i++) {
-        var c = (i + 0.5) / n; // bar's center as a fraction of the range
-        bars[i].classList.toggle("out", c < lo || c > hi);
-      }
+      fill.style.left = lo * 100 + "%"; fill.style.right = (1 - hi) * 100 + "%";
+      var lv = Math.round(f.b.min + lo * (f.b.max - f.b.min)), hv = Math.round(f.b.min + hi * (f.b.max - f.b.min));
+      var elLo = root.querySelector("#" + prefix + "-price-lo"), elHi = root.querySelector("#" + prefix + "-price-hi");
+      if (elLo) elLo.textContent = "$" + lv;
+      if (elHi) elHi.textContent = "$" + hv;
+      var card = slider.closest(".pf-card"), hb = card ? card.querySelectorAll(".fs-histogram span") : [];
+      for (var i = 0; i < hb.length; i++) { var c = (i + 0.5) / hb.length; hb[i].classList.toggle("out", c < lo || c > hi); }
     }
+    slider._sync = render;
     function drag(thumb, isLo) {
       thumb.addEventListener("pointerdown", function (e) {
         e.preventDefault();
         try { thumb.setPointerCapture(e.pointerId); } catch (_) { /* capture is a nicety, not required */ }
         function move(ev) {
-          var r = slider.getBoundingClientRect();
+          var r = slider.getBoundingClientRect(), f = frac();
           var t = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
-          if (isLo) lo = Math.min(t, hi); else hi = Math.max(t, lo);
-          render();
+          var lo = isLo ? Math.min(t, f.hi) : f.lo, hi = isLo ? f.hi : Math.max(t, f.lo);
+          drawerFilters.priceMin = Math.round(f.b.min + lo * (f.b.max - f.b.min));
+          drawerFilters.priceMax = Math.round(f.b.min + hi * (f.b.max - f.b.min));
+          render(); refreshSheetCount(); refreshPrefilterCount();
         }
         function up() {
           thumb.removeEventListener("pointermove", move);
           thumb.removeEventListener("pointerup", up);
-          refreshShopFilters(); refreshFilterSheet(); // apply the range to the listings
+          refreshShopFilters(); refreshFilterSheet(); refreshPrefilter(); // apply the range everywhere
         }
         thumb.addEventListener("pointermove", move);
         thumb.addEventListener("pointerup", up);
@@ -2300,6 +2340,7 @@
     drag(loT, true); drag(hiT, false);
     render();
   }
+  function initFsSlider() { initPriceSlider(sheetEl, "fs"); }
 
   // ---------- pushed-screen router (history-based stack) ----------
 
@@ -2347,6 +2388,7 @@
     if (document.getElementById("screen-prefilter")) return;
     pushScreen("prefilter", prefilterScreenHTML());
     clampChipGroups(document.getElementById("screen-prefilter"));
+    initPriceSlider(document.getElementById("screen-prefilter"), "pf");
     // pre-filter header responds to scroll differently from the master:
     // title always visible; bg+shadow (and the back button's grey circle)
     // appear once content scrolls >= 1px (frames 1846:145823/146864)
@@ -2429,6 +2471,7 @@
     },
     "pf-showmore": function () { toast(); },
     "pf-clear": function () {
+      drawerFilters = { descriptions: [], years: [], currencies: [], acceptsOffers: false, priceMin: null, priceMax: null };
       filters.formats = [];
       filters.conditions = [];
       filters.countries = [];
@@ -2454,12 +2497,19 @@
       var i = arr.indexOf(el.dataset.value);
       if (i === -1) arr.push(el.dataset.value); else arr.splice(i, 1);
       el.classList.toggle("selected");
-      refreshSheetCount(); refreshShopFilters(); refreshFilterSheet();
+      refreshSheetCount(); refreshShopFilters(); refreshFilterSheet(); refreshPrefilter();
     },
     "fs-offers": function (el) {
       drawerFilters.acceptsOffers = !drawerFilters.acceptsOffers;
       el.classList.toggle("on");
-      refreshSheetCount(); refreshShopFilters(); refreshFilterSheet();
+      refreshSheetCount(); refreshShopFilters(); refreshFilterSheet(); refreshPrefilter();
+    },
+    "pf-toggle": function (el) {
+      var key = el.dataset.card, card = el.closest(".pf-card");
+      pfOpen[key] = !pfOpen[key];
+      card.classList.toggle("closed", !pfOpen[key]);
+      el.setAttribute("aria-expanded", pfOpen[key] ? "true" : "false");
+      if (pfOpen[key]) { clampChipGroups(card); initPriceSlider(card, "pf"); } // chips can only be measured once visible
     },
     "af-remove": function (el) {
       var g = el.dataset.group;
