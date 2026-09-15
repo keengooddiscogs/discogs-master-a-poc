@@ -4756,9 +4756,10 @@ button {
   text-align: left;
 }
 .pf-card-head h2 { margin: 0; }
-.pf-card-chev { width: 16px; height: 16px; flex-shrink: 0; transition: transform 0.18s ease; }
+/* 12x7 chevron (the asset is a wide glyph with preserveAspectRatio none, so a
+   square box stretches it); the whole header button is the tap target */
+.pf-card-chev { width: 12px; height: 7px; flex-shrink: 0; transition: transform 0.18s ease; }
 .pf-card.collapsible:not(.closed) .pf-card-chev { transform: rotate(180deg); }
 .pf-card-body { padding: 0 var(--sp-2) var(--sp-2); }
 .pf-card.collapsible.closed .pf-card-body { display: none; }
-.pf-card-body.offers-row { display: flex; justify-content: flex-end; }
 .pf-card-body > .pf-chips { margin-top: 0; }

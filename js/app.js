@@ -630,7 +630,7 @@
 
   // Find your copy carries every facet the shop's Filters sheet has, in the
   // same order; the first three are open, the rest fold behind a chevron
-  var pfOpen = { price: false, descriptions: false, years: false, offers: false, currencies: false };
+  var pfOpen = { price: false, descriptions: false, years: false, currencies: false };
   function pfCollapsibleHTML(key, title, body, bodyClass) {
     return (
       '<div class="pf-card collapsible' + (pfOpen[key] ? "" : " closed") + '" data-card="' + key + '">' +
@@ -689,7 +689,7 @@
       pfCollapsibleHTML("price", "Price Range", priceBodyHTML("pf")) +
       pfCollapsibleHTML("descriptions", "Format Description", descBodyHTML()) +
       pfCollapsibleHTML("years", "Release Year", yearsBodyHTML()) +
-      pfCollapsibleHTML("offers", "Accepts offers", offersBodyHTML(), "offers-row") +
+      '<div class="pf-card fs-offers"><h2>Accepts offers</h2>' + offersBodyHTML() + "</div>" + // stays exposed (user)
       pfCollapsibleHTML("currencies", "Currency", currencyBodyHTML()) +
       "</div>" +
       // action bar
