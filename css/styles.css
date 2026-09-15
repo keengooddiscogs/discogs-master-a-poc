@@ -4758,8 +4758,30 @@ button {
 .pf-card-head h2 { margin: 0; }
 /* 12x7 chevron (the asset is a wide glyph with preserveAspectRatio none, so a
    square box stretches it); the whole header button is the tap target */
-.pf-card-chev { width: 12px; height: 7px; flex-shrink: 0; transition: transform 0.18s ease; }
+.pf-card-chev { width: 12px; height: 7px; flex-shrink: 0; transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1); }
 .pf-card.collapsible:not(.closed) .pf-card-chev { transform: rotate(180deg); }
-.pf-card-body { padding: 0 var(--sp-2) var(--sp-2); }
-.pf-card.collapsible.closed .pf-card-body { display: none; }
-.pf-card-body > .pf-chips { margin-top: 0; }
+
+/* no press feedback on these headers (user): the row shouldn't dim on tap */
+.pf-card-head.tappable { transition: none; }
+.pf-card-head.tappable:active { opacity: 1; }
+
+/* the fold eases open/closed: a 0fr -> 1fr grid row animates to the content's
+   own height with no measuring; the inner wrapper carries the padding so it
+   collapses along with the row */
+.pf-card-body {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.pf-card.collapsible.closed .pf-card-body { grid-template-rows: 0fr; }
+.pf-card-inner {
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 var(--sp-2) var(--sp-2);
+}
+.pf-card.collapsible.closed .pf-card-inner { padding-bottom: 0; transition: padding 0.28s cubic-bezier(0.16, 1, 0.3, 1); }
+.pf-card-inner > .pf-chips { margin-top: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pf-card-body, .pf-card-chev, .pf-card-inner { transition: none; }
+}

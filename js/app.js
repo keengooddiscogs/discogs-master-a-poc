@@ -636,7 +636,7 @@
       '<div class="pf-card collapsible' + (pfOpen[key] ? "" : " closed") + '" data-card="' + key + '">' +
       '<button class="pf-card-head tappable" data-action="pf-toggle" data-card="' + key + '" aria-expanded="' + (pfOpen[key] ? "true" : "false") + '">' +
       "<h2>" + title + '</h2><img class="pf-card-chev" src="shared/assets/b-chevdown.svg" alt="" /></button>' +
-      '<div class="pf-card-body' + (bodyClass ? " " + bodyClass : "") + '">' + body + "</div>" +
+      '<div class="pf-card-body' + (bodyClass ? " " + bodyClass : "") + '"><div class="pf-card-inner">' + body + "</div></div>" +
       "</div>"
     );
   }
