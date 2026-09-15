@@ -4028,6 +4028,13 @@ button {
   text-align: left;
 }
 
+/* +4px between sections (user): the previous list's bottom sits 28px above
+   the next title (16px section padding + 12px here); the first section and
+   the title-to-list gap are unchanged */
+.sr-section + .sr-section > .sr-sec-head {
+  padding-top: var(--sp-15);
+}
+
 .sr-sec-title {
   font-size: var(--fs-body-medium);
   font-weight: 700;
