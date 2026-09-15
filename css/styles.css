@@ -3867,8 +3867,11 @@ button {
   letter-spacing: var(--ls-default);
 }
 
-/* sort pill icon direction after Apply */
-.pill-button .i-sort.desc { transform: scaleY(-1); }
+/* sort pill icon direction: despite its name, icon-sort-asc.svg draws the
+   arrowhead at the bottom (points down), so it is the descending glyph as-is
+   — flip it for ascending, not the other way round (user caught this) */
+.pill-button .i-sort.desc { transform: none; }
+.pill-button .i-sort.asc { transform: scaleY(-1); }
 
 /* ==========================================================
    Search screen (frame 2005:92242) — flow entry point
